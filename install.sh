@@ -40,9 +40,9 @@ check_err() {
     if [[ $? != 0 ]]; then echo -e "\n$is_err $@\n" && exit 1; fi
 }
 
-if [[ $(lsb_release -rs) != "20.04" || $(lsb_release -is) != "Ubuntu" || $(uname -m) != "x86_64" ]]; then
-    err "仅支持 ${yellow}(Ubuntu 20.04 和 x86_64 架构)${none}"
-fi
+#if [[ $(lsb_release -rs) != "20.04" || $(lsb_release -is) != "Ubuntu" || $(uname -m) != "x86_64" ]]; then
+#    err "仅支持 ${yellow}(Ubuntu 20.04 和 x86_64 架构)${none}"
+#fi
 
 configure_pip_source() {
     mkdir -p ~/.pip
