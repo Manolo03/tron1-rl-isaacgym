@@ -1,0 +1,32 @@
+
+<sdf version="1.6">
+  <world name="isaac_terrain">
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <model name="isaac_terrain">
+      <static>true</static>
+      <link name="terrain_link">
+        <collision name="terrain_collision">
+          <geometry>
+            <heightmap>
+              <uri>file://$(pwd)/terrain.png</uri>
+              <size>100 100 10</size>
+              <pos>0 0 0</pos>
+            </heightmap>
+          </geometry>
+        </collision>
+        <visual name="terrain_visual">
+          <geometry>
+            <heightmap>
+              <uri>file://$(pwd)/terrain.png</uri>
+              <size>100 100 10</size>
+              <pos>0 0 0</pos>
+            </heightmap>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

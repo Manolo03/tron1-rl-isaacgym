@@ -33,6 +33,7 @@ from numpy.random import choice
 from scipy import interpolate
 
 from isaacgym import terrain_utils
+#from isaacgym.terrain_utils import stairs_terrain
 
 class Terrain:
     def __init__(self, cfg, num_robots) -> None:
@@ -53,6 +54,8 @@ class Terrain:
 
         self.width_per_env_pixels = int(self.env_width / cfg.horizontal_scale)
         self.length_per_env_pixels = int(self.env_length / cfg.horizontal_scale)
+        self.vertical_scale = cfg.vertical_scale
+        self.horizontal_scale = cfg.horizontal_scale
 
         self.border = int(cfg.border_size / self.cfg.horizontal_scale)
         if self.type == "trimesh":
@@ -74,7 +77,7 @@ class Terrain:
         else:
             self.randomized_terrain()
 
-        self.heightsamples = self.height_field_raw
+        self.heightsamples = self.height_field_raw.flatten()
         if self.type == "trimesh":
             (
                 self.vertices,
@@ -118,7 +121,8 @@ class Terrain:
                 horizontal_scale=self.horizontal_scale,
             )
 
-            eval(terrain_type)(terrain, **self.cfg.terrain_kwargs.terrain_kwargs)
+            #eval(terrain_type)(terrain, **self.cfg.terrain_kwargs.terrain_kwargs)
+            getattr(terrain_utils, terrain_type)(terrain, **self.cfg.terrain_kwargs["terrain_kwargs"])
             self.add_terrain_to_map(terrain, i, j)
 
     def make_terrain(self, choice, difficulty):

@@ -45,11 +45,11 @@ class BipedCfgWF(BaseConfig):
         fail_to_terminal_time_s = 0.5
 
     class terrain:
-        mesh_type = "plane"  # "heightfield" # none, plane, heightfield or trimesh
-        horizontal_scale = 0.1  # [m]
+        mesh_type = "trimesh"  # "heightfield" # none, plane, heightfield or trimesh
+        horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005  # [m]
         border_size = 25  # [m]
-        curriculum = True
+        curriculum = False
         static_friction = 0.4
         dynamic_friction = 0.4
         restitution = 0.8
@@ -72,8 +72,23 @@ class BipedCfgWF(BaseConfig):
             0.6,
         ]  # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4]
-        selected = False  # select a unique terrain type and pass all arguments
-        terrain_kwargs = None  # Dict of arguments for selected terrain
+        selected = True  # select a unique terrain type and pass all arguments
+        # terrain_kwargs = {
+        #     "type": "stairs_terrain",
+        #     "terrain_kwargs": {
+        #         "step_width": 0.5,  # meters
+        #         "step_height": 0.2  # meters
+        #     }
+        # }  # Dict of arguments for selected terrain
+        terrain_kwargs = {
+            "type": "pyramid_stairs_terrain",
+            "terrain_kwargs": {
+                "step_width": 0.5,  # meters
+                "step_height": 0.2,  # meters
+                "platform_size" : 1.
+            }
+        }  # Dict of arguments for selected terrain
+        
         max_init_terrain_level = 5 + 4  # starting curriculum state
         terrain_length = 8.0
         terrain_width = 8.0
