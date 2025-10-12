@@ -34,9 +34,10 @@ class BipedCfgWF(BaseConfig):
     class env:
         num_envs = 8192
         num_observations = 30 + 6 - 2 - 4 - 2  # +6 means wheel obs,-2 means sin&cos clock, -4 means gait para nums -2 means wheels pos
+                                               #30 = 3 (base angle) + 3 (projected gravity) + 6 (dof_pos) + 6 (dof_vel) + 8 (actions)
         num_critic_observations = 3 + num_observations
         num_height_samples = 117
-        num_actions = 8
+        num_actions = 8 # 2*3 joint or each leg + 2* speed angular velocity (indice 3 et 7)
         env_spacing = 3.0  # not used with heightfields/trimeshes
         send_timeouts = True  # send time out information to the algorithm
         episode_length_s = 20  # episode length in seconds
