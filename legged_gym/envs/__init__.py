@@ -57,9 +57,12 @@ elif robot_type == "SF_TRON1A":
     task_registry.register("pointfoot_flat", BipedSF, BipedCfgSF(), BipedCfgPPOSF())
 
 elif robot_type == "WF_TRON1A":
-    from legged_gym.envs.wheelfoot_flat.wheelfoot_flat import BipedWF
-    from legged_gym.envs.wheelfoot_flat.wheelfoot_flat_config import BipedCfgWF, BipedCfgPPOWF
-    task_registry.register("wheelfoot_flat", BipedWF, BipedCfgWF(), BipedCfgPPOWF())
+    from legged_gym.envs.wheelfoot_flat.wheelfoot_flat import BipedWF as BipedWF_F
+    from legged_gym.envs.wheelfoot_flat.wheelfoot_flat_config import BipedCfgWF as BipedCfgWF_F, BipedCfgPPOWF as BipedCfgPPOWF_F
+    from legged_gym.envs.wheelfoot_jump.wheelfoot_jump import BipedWF as BipedWF_J
+    from legged_gym.envs.wheelfoot_jump.wheelfoot_jump_config import BipedCfgWF as BipedCfgWF_J, BipedCfgPPOWF as BipedCfgPPOWF_J
+    task_registry.register("wheelfoot_flat", BipedWF_F, BipedCfgWF_F(), BipedCfgPPOWF_F())
+    task_registry.register("wheelfoot_jump", BipedWF_J, BipedCfgWF_J(), BipedCfgPPOWF_J())
 
 else:
     print("\033[1m\033[31mError: Input ROBOT_TYPE={}".format(robot_type), 
