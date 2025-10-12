@@ -46,7 +46,7 @@ class BipedCfgWF(BaseConfig):
         fail_to_terminal_time_s = 0.5
 
     class terrain:
-        mesh_type = "trimesh"  # "heightfield" # none, plane, heightfield or trimesh
+        mesh_type = "plane"  # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005  # [m]
         border_size = 25  # [m]
@@ -246,8 +246,8 @@ class BipedCfgWF(BaseConfig):
             keep_balance = 1.0
 
             # tracking related rewards
-            # tracking_lin_vel = 4.0
-            # tracking_ang_vel = 2.0
+            tracking_lin_vel = -4.0
+            tracking_ang_vel = -2.0
             # tracking_lin_vel_pb = 1.0
             # tracking_ang_vel_pb = 0.2
 
@@ -268,6 +268,7 @@ class BipedCfgWF(BaseConfig):
             feet_distance = -100
             #base_height = -20
             jump_height = -40
+            stay_near_start_xy = -5
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
         clip_reward = 100
