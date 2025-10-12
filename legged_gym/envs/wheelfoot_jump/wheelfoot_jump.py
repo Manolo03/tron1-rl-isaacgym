@@ -340,18 +340,18 @@ class BipedWF(BaseTask):
             torch.norm(
                 self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 1.0, dim=1)
 
-    def _reward_nominal_foot_position(self):
-        #1. calculate foot postion wrt base in base frame  
-        nominal_base_height = -(self.cfg.rewards.base_height_target- self.cfg.asset.foot_radius)
-        foot_positions_base = self.foot_positions - \
-                            (self.base_position).unsqueeze(1).repeat(1, len(self.feet_indices), 1)
-        reward = 0
-        for i in range(len(self.feet_indices)):
-            foot_positions_base[:, i, :] = quat_rotate_inverse(self.base_quat, foot_positions_base[:, i, :] )
-            height_error = nominal_base_height - foot_positions_base[:, i, 2]
-            reward += torch.exp(-(height_error ** 2)/ self.cfg.rewards.nominal_foot_position_tracking_sigma)
-        vel_cmd_norm = torch.norm(self.commands[:, :3], dim=1)
-        return reward / len(self.feet_indices)*torch.exp(-(vel_cmd_norm ** 2)/self.cfg.rewards.nominal_foot_position_tracking_sigma_wrt_v)
+    # def _reward_nominal_foot_position(self):
+    #     #1. calculate foot postion wrt base in base frame  
+    #     nominal_base_height = -(self.cfg.rewards.base_height_target- self.cfg.asset.foot_radius)
+    #     foot_positions_base = self.foot_positions - \
+    #                         (self.base_position).unsqueeze(1).repeat(1, len(self.feet_indices), 1)
+    #     reward = 0
+    #     for i in range(len(self.feet_indices)):
+    #         foot_positions_base[:, i, :] = quat_rotate_inverse(self.base_quat, foot_positions_base[:, i, :] )
+    #         height_error = nominal_base_height - foot_positions_base[:, i, 2]
+    #         reward += torch.exp(-(height_error ** 2)/ self.cfg.rewards.nominal_foot_position_tracking_sigma)
+    #     vel_cmd_norm = torch.norm(self.commands[:, :3], dim=1)
+    #     return reward / len(self.feet_indices)*torch.exp(-(vel_cmd_norm ** 2)/self.cfg.rewards.nominal_foot_position_tracking_sigma_wrt_v)
     
     def _reward_same_foot_z_position(self):
         reward = 0
@@ -382,8 +382,10 @@ class BipedWF(BaseTask):
         return reward
 
     def _reward_lin_vel_z(self):
-        # Penalize z axis base linear velocity
-        return torch.square(self.base_lin_vel[:, 2])
+        # Encourage positive vertical velocity to facilitate jumping
+        z_vel = self.base_lin_vel[:, 2]
+        z_vel = torch.where(z_vel < 0, torch.zeros_like(z_vel), z_vel)
+        return torch.square(z_vel)
 
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
@@ -423,27 +425,32 @@ class BipedWF(BaseTask):
         out_of_limits += (self.dof_pos - self.dof_pos_limits[:, 1]).clip(min=0.0)
         return torch.sum(out_of_limits, dim=1)
 
-    def _reward_tracking_lin_vel(self):
-        # Tracking of linear velocity commands (xy axes)
-        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
-        return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
+    # def _reward_tracking_lin_vel(self):
+    #     # Tracking of linear velocity commands (xy axes)
+    #     lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
+    #     return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
 
-    def _reward_tracking_lin_vel_pb(self):
-        delta_phi = ~self.reset_buf * (self._reward_tracking_lin_vel() - self.rwd_linVelTrackPrev)
-        # return ang_vel_error
-        return delta_phi / self.dt
+    # def _reward_tracking_lin_vel_pb(self):
+    #     delta_phi = ~self.reset_buf * (self._reward_tracking_lin_vel() - self.rwd_linVelTrackPrev)
+    #     # return ang_vel_error
+    #     return delta_phi / self.dt
 
-    def _reward_tracking_ang_vel(self):
-        # Tracking of angular velocity commands (yaw)
-        ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 2])
-        return torch.exp(-ang_vel_error / self.cfg.rewards.ang_tracking_sigma)
+    # def _reward_tracking_ang_vel(self):
+    #     # Tracking of angular velocity commands (yaw)
+    #     ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 2])
+    #     return torch.exp(-ang_vel_error / self.cfg.rewards.ang_tracking_sigma)
 
-    def _reward_tracking_ang_vel_pb(self):
-        delta_phi = ~self.reset_buf * (self._reward_tracking_ang_vel() - self.rwd_angVelTrackPrev)
-        # return ang_vel_error
-        return delta_phi / self.dt
+    # def _reward_tracking_ang_vel_pb(self):
+    #     delta_phi = ~self.reset_buf * (self._reward_tracking_ang_vel() - self.rwd_angVelTrackPrev)
+    #     # return ang_vel_error
+    #     return delta_phi / self.dt
     
-    def _reward_base_height(self):
-        # Penalize base height away from target
-        base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-        return torch.abs(base_height - self.cfg.rewards.base_height_target)
+    # def _reward_base_height(self):
+    #     # Penalize base height away from target
+    #     base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
+    #     return torch.abs(base_height - self.cfg.rewards.base_height_target)
+    
+    def _reward_jump_height(self):
+        # Penalize jump height away from target
+        jump_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
+        return torch.abs(jump_height - self.cfg.rewards.jump_height_target)

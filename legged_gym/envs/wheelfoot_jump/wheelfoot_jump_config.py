@@ -34,7 +34,7 @@ class BipedCfgWF(BaseConfig):
     class env:
         num_envs = 8192
         num_observations = 30 + 6 - 2 - 4 - 2  # +6 means wheel obs,-2 means sin&cos clock, -4 means gait para nums -2 means wheels pos
-                                               #30 = 3 (base angle) + 3 (projected gravity) + 6 (dof_pos) + 6 (dof_vel) + 8 (actions)
+                                               #28 = 3 (base angle) + 3 (projected gravity) + 6 (dof_pos) + 8 (dof_vel) + 8 (actions)
         num_critic_observations = 3 + num_observations
         num_height_samples = 117
         num_actions = 8 # 2*3 joint or each leg + 2* speed angular velocity (indice 3 et 7)
@@ -246,17 +246,17 @@ class BipedCfgWF(BaseConfig):
             keep_balance = 1.0
 
             # tracking related rewards
-            tracking_lin_vel = 4.0
-            tracking_ang_vel = 2.0
-            tracking_lin_vel_pb = 1.0
-            tracking_ang_vel_pb = 0.2
+            # tracking_lin_vel = 4.0
+            # tracking_ang_vel = 2.0
+            # tracking_lin_vel_pb = 1.0
+            # tracking_ang_vel_pb = 0.2
 
             # regulation related rewards
-            nominal_foot_position = 4.0
+            #nominal_foot_position = 4.0
             leg_symmetry = 0.5
             same_foot_x_position = -50 # 0.5
             same_foot_z_position = -100
-            lin_vel_z = -0.3
+            lin_vel_z = 20
             ang_vel_xy = -0.3
             torques = -0.00016
             dof_acc = -1.5e-7
@@ -266,7 +266,8 @@ class BipedCfgWF(BaseConfig):
             action_smooth = -0.03
             orientation = -12.0
             feet_distance = -100
-            base_height = -20
+            #base_height = -20
+            jump_height = -40
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
         clip_reward = 100
@@ -283,7 +284,8 @@ class BipedCfgWF(BaseConfig):
         )
         soft_dof_vel_limit = 1.0
         soft_torque_limit = 0.8
-        base_height_target = 0.6 + 0.1664
+        jump_height_target = 0.845 + 0.1664 + 0.10 #0.845 is all stretched, 0.1664 wheel radius, 0.10 is jump height
+        # base_height_target = 0.6 + 0.1664
         feet_height_target = 0.10
         min_feet_distance = 0.32
         max_feet_distance = 0.35
