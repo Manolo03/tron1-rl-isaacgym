@@ -191,13 +191,6 @@ class BipedWF(BaseTask):
             dim=-1,
             
         )
-        print("Observation names & sizes:")
-        print("Angular vel:", self.base_ang_vel.shape[1])
-        print("Proj gravity:", self.projected_gravity.shape[1])
-        print("DOF pos:", dof_pos.shape[1])
-        print("DOF vel:", self.dof_vel.shape[1])
-        print("Actions:", self.actions.shape[1])
-        # print("Commands:", self.commands.shape[1])  # if present
         critic_obs_buf = torch.cat((
             self.base_lin_vel * self.obs_scales.lin_vel, self.obs_buf), dim=-1)
         return obs_buf, critic_obs_buf

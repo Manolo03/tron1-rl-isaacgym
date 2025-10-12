@@ -817,8 +817,8 @@ class BaseTask:
         return points
     
     def pre_physics_step(self):
-        self.rwd_linVelTrackPrev = self._reward_tracking_lin_vel()
-        self.rwd_angVelTrackPrev = self._reward_tracking_ang_vel()
+        # self.rwd_linVelTrackPrev = self._reward_tracking_lin_vel()
+        # self.rwd_angVelTrackPrev = self._reward_tracking_ang_vel()
         if "tracking_contacts_shaped_height" in self.reward_scales.keys():
             self.rwd_swingHeightPrev = self._reward_tracking_contacts_shaped_height()
             
