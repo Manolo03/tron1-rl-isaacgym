@@ -243,36 +243,36 @@ class BipedCfgWF(BaseConfig):
     class rewards:
         class scales:
             # termination related rewards
-            keep_balance = 1.0
+            keep_balance = 10.0
 
             # tracking related rewards
-            tracking_lin_vel = -4.0
-            tracking_ang_vel = -2.0
+            tracking_lin_vel = -10.0
+            tracking_ang_vel = -5.0
             # tracking_lin_vel_pb = 1.0
             # tracking_ang_vel_pb = 0.2
 
             # regulation related rewards
             #nominal_foot_position = 4.0
-            leg_symmetry = 0.5
-            same_foot_x_position = -50 # 0.5
-            same_foot_z_position = -100
-            lin_vel_z = 20
-            ang_vel_xy = -0.3
+            leg_symmetry = 1.0
+            same_foot_x_position = -5 # 0.5
+            same_foot_z_position = -10
+            lin_vel_z = 0.5
+            # ang_vel_xy = -0.3
             torques = -0.00016
-            dof_acc = -1.5e-7
-            action_rate = -0.03
-            dof_pos_limits = -2.0
-            collision = -50
-            action_smooth = -0.03
+            # dof_acc = -1.5e-7
+            action_rate = -0.02
+            # dof_pos_limits = -2.0
+            collision = -75
+            # action_smooth = -0.01
             orientation = -12.0
-            feet_distance = -100
+            # feet_distance = -25
             #base_height = -20
-            jump_height = -40
-            stay_near_start_xy = -5
+            jump_height = 100
+            # stay_near_start_xy = -5
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
-        clip_reward = 100
-        clip_single_reward = 5
+        clip_reward = 200
+        clip_single_reward = 100
         tracking_sigma = 0.2  # tracking reward = exp(-error^2/sigma)
         ang_tracking_sigma = 0.25  # tracking reward = exp(-error^2/sigma)
         nominal_foot_position_tracking_sigma = 0.005
@@ -285,7 +285,7 @@ class BipedCfgWF(BaseConfig):
         )
         soft_dof_vel_limit = 1.0
         soft_torque_limit = 0.8
-        jump_height_target = 0.845 + 0.1664 + 0.10 #0.845 is all stretched, 0.1664 wheel radius, 0.10 is jump height
+        jump_height_target = 0.845 + 0.127 + 0.10 #0.845 is all stretched, 0.127 wheel radius, 0.20 is jump height above max height stretched
         # base_height_target = 0.6 + 0.1664
         feet_height_target = 0.10
         min_feet_distance = 0.32
@@ -296,6 +296,7 @@ class BipedCfgWF(BaseConfig):
         gait_vel_sigma = 0.25
         gait_height_sigma = 0.005
         feet_height_tracking_sigma = 0.005
+        jump_height_sigma = 0.01
 
     class normalization:
         class obs_scales:

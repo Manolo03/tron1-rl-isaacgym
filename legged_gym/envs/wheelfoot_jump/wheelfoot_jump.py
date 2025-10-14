@@ -353,7 +353,7 @@ class BipedWF(BaseTask):
         for i in range(len(self.feet_indices)):
             foot_positions_base[:, i, :] = quat_rotate_inverse(self.base_quat, foot_positions_base[:, i, :] )
         foot_z_position_err = foot_positions_base[:,0,2] - foot_positions_base[:,1,2]
-        return foot_z_position_err ** 2
+        return torch.abs(foot_z_position_err) #passé à un carré ? ça peut être bien pour les distances
 
     def _reward_leg_symmetry(self):
         foot_positions_base = self.foot_positions - \
@@ -425,7 +425,7 @@ class BipedWF(BaseTask):
 
     def _reward_tracking_lin_vel(self):
         # Penalize non zero linear velocity of the base 
-        return torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1)
+        return torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1) #changer à abs plutôt que square ?
 
     # def _reward_tracking_lin_vel_pb(self):
     #     delta_phi = ~self.reset_buf * (self._reward_tracking_lin_vel() - self.rwd_linVelTrackPrev)
@@ -438,8 +438,8 @@ class BipedWF(BaseTask):
     #     return torch.exp(-ang_vel_error / self.cfg.rewards.ang_tracking_sigma)
 
     def _reward_tracking_ang_vel(self):
-        # Penalize non zero yaw rate of change of the base 
-        return torch.square(self.base_ang_vel[:, 2])
+        # Penalize non zero yaw and roll rate of change of the base
+        return torch.square(self.base_ang_vel[:, 2]) + torch.square(self.base_ang_vel[:, 0])
 
     # def _reward_tracking_ang_vel_pb(self):
     #     delta_phi = ~self.reset_buf * (self._reward_tracking_ang_vel() - self.rwd_angVelTrackPrev)
@@ -452,9 +452,9 @@ class BipedWF(BaseTask):
     #     return torch.abs(base_height - self.cfg.rewards.base_height_target)
     
     def _reward_jump_height(self):
-        # Penalize jump height away from target
+        # Exponential reward for being close to jump height target
         jump_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-        return torch.abs(jump_height - self.cfg.rewards.jump_height_target)
+        return torch.exp(-((jump_height - self.cfg.rewards.jump_height_target) ** 2) / self.cfg.rewards.jump_height_sigma)
     
     def _reward_stay_near_start_xy(self):
         # Penalize deviation in x and y from starting position
