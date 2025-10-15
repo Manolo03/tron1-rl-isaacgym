@@ -138,6 +138,10 @@ def play(args):
         obs, rews, dones, infos, obs_history, commands, _ = env.step(
             actions.detach()
         )
+
+        if hasattr(env, "rew_dict"):
+            logger.log_rewards_step(env.rew_dict)
+
         if RECORD_FRAMES:
             if i % 2:
                 filename = os.path.join(
@@ -201,6 +205,7 @@ def play(args):
                 )
         elif i == stop_state_log:
             logger.plot_states()
+            #logger.plot_rewards()
 
         if 0 < i < stop_rew_log:
             if infos["episode"]:

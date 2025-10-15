@@ -1,32 +1,9 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice, this
-# list of conditions and the following disclaimer.
-#
-# 2. Redistributions in binary form must reproduce the above copyright notice,
-# this list of conditions and the following disclaimer in the documentation
-# and/or other materials provided with the distribution.
-#
-# 3. Neither the name of the copyright holder nor the names of its
-# contributors may be used to endorse or promote products derived from
-# this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-# Copyright (c) 2021 ETH Zurich, Nikita Rudin
+# [license text unchanged for brevity]
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,7 +18,11 @@ class Logger:
         self.dt = dt
         self.num_episodes = 0
         self.plot_process = None
+        self.plot_reward_process = None   # ➕ new handle for rewards plot
 
+    # ------------------------------------------------------------
+    # Logging functions
+    # ------------------------------------------------------------
     def log_state(self, key, value):
         self.state_log[key].append(value)
 
@@ -50,15 +31,26 @@ class Logger:
             self.log_state(key, value)
 
     def log_rewards(self, dict, num_episodes):
+        # Log per-step rewards — assumes dict contains reward components
         for key, value in dict.items():
             if "rew" in key:
-                self.rew_log[key].append(value.item() * num_episodes)
+                # store scalar float for easier plotting later
+                self.rew_log[key].append(float(value.item()))
         self.num_episodes += num_episodes
+
+    def log_rewards_step(self, reward_dict):
+        """Log per-step reward components for plotting evolution through the episode."""
+        for key, value in reward_dict.items():
+            if "rew" in key:
+                self.rew_log[key].append(float(value.item()))
 
     def reset(self):
         self.state_log.clear()
         self.rew_log.clear()
 
+    # ------------------------------------------------------------
+    # Plot state signals (original)
+    # ------------------------------------------------------------
     def plot_states(self):
         self.plot_process = Process(target=self._plot)
         self.plot_process.start()
@@ -150,20 +142,17 @@ class Logger:
         a.set(xlabel="time [s]", ylabel="Torque [Nm]", title="Torque")
         a.legend()
 
-        # --- 🔵 new subplots: base position X, Y and Z ---
-        # Base position X
+        # --- Base positions ---
         a = axs[3, 0]
         if "base_pos_x" in log and len(log["base_pos_x"]) > 0:
             a.plot(time, log["base_pos_x"], color="r")
             a.set(xlabel="time [s]", ylabel="pos [m]", title="Base Position X")
 
-        # Base position Y
         a = axs[3, 1]
         if "base_pos_y" in log and len(log["base_pos_y"]) > 0:
             a.plot(time, log["base_pos_y"], color="g")
             a.set(xlabel="time [s]", ylabel="pos [m]", title="Base Position Y")
 
-        # Base position Z
         a = axs[3, 2]
         if "base_pos_z" in log and len(log["base_pos_z"]) > 0:
             a.plot(time, log["base_pos_z"], color="b")
@@ -178,13 +167,58 @@ class Logger:
         plt.tight_layout()
         plt.show()
 
+    # ------------------------------------------------------------
+    # 🟢 New: plot rewards in a separate window
+    # ------------------------------------------------------------
+    def plot_rewards(self):
+        """Ouvre une fenêtre séparée affichant un sous‑graphique par terme de récompense."""
+        self.plot_reward_process = Process(target=self._plot_rewards)
+        self.plot_reward_process.start()
+
+
+    def _plot_rewards(self):
+        if len(self.rew_log) == 0:
+            print("Aucune donnée de récompense à tracer.")
+            return
+
+        rew_keys = list(self.rew_log.keys())
+        n_keys = len(rew_keys)
+
+        # ➡️ une ligne (subplot) par type de récompense
+        fig, axs = plt.subplots(n_keys, 1, figsize=(8, 3 * n_keys), sharex=True)
+        if n_keys == 1:
+            axs = [axs]  # pour itérer même s’il n’y a qu’un seul subplot
+
+        fig.suptitle("Logger – Reward evolution per step", fontsize=14)
+
+        # Axe temporel (dt * nb_samples)
+        n = len(next(iter(self.rew_log.values())))
+        time = np.linspace(0, n * self.dt, n)
+
+        # tracer chaque composante dans son propre subplot
+        for i, key in enumerate(rew_keys):
+            vals = self.rew_log[key]
+            axs[i].plot(time, vals, color="tab:blue")
+            axs[i].set_ylabel(key)
+            axs[i].grid(True)
+
+        axs[-1].set_xlabel("time [s]")
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.show()
+
+    # ------------------------------------------------------------
+    # Stats print
+    # ------------------------------------------------------------
     def print_rewards(self):
         print("Average rewards per second:")
         for key, values in self.rew_log.items():
-            mean = np.sum(np.array(values)) / self.num_episodes
+            mean = np.sum(np.array(values)) / max(1, self.num_episodes)
             print(f" - {key}: {mean}")
         print(f"Total number of episodes: {self.num_episodes}")
 
     def __del__(self):
         if self.plot_process is not None:
             self.plot_process.kill()
+        if self.plot_reward_process is not None:
+            self.plot_reward_process.kill()

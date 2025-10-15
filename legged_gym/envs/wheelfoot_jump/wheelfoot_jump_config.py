@@ -256,7 +256,7 @@ class BipedCfgWF(BaseConfig):
             leg_symmetry = 1.0
             same_foot_x_position = -5 # 0.5
             same_foot_z_position = -10
-            lin_vel_z = 25
+            lin_vel_z = 10
             # ang_vel_xy = -0.3
             torques = -0.00016
             # dof_acc = -1.5e-7
