@@ -375,10 +375,17 @@ class BipedWF(BaseTask):
         return reward
 
     def _reward_lin_vel_z(self):
-        # Encourage positive vertical velocity to facilitate jumping
-        z_vel = self.base_lin_vel[:, 2]
-        z_vel = torch.where(z_vel < 0, torch.zeros_like(z_vel), z_vel)
-        return torch.square(z_vel)
+        # Reward scales with vertical velocity in world coordinates.
+        # Positive z_vel -> positive reward (jumping up)
+        # Negative z_vel -> negative reward (falling down)
+
+        # Transform linear velocity into world frame
+        world_lin_vel = quat_apply(self.base_quat, self.base_lin_vel)
+        z_vel = world_lin_vel[:, 2]
+
+        # Reward proportional to signed square (retains sign of velocity)
+        # Alternatively, linear term (just z_vel) if you don't want quadratic scaling.
+        return torch.square(z_vel) * torch.sign(z_vel)
 
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
@@ -424,8 +431,14 @@ class BipedWF(BaseTask):
     #     return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
 
     def _reward_tracking_lin_vel(self):
-        # Penalize non zero linear velocity of the base 
-        return torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1) #changer à abs plutôt que square ?
+        # Compute base linear velocity in world coordinates
+        world_lin_vel = quat_apply(self.base_quat, self.base_lin_vel)
+
+        # Keep only the horizontal (ground‑plane) components
+        world_lin_vel_xy = world_lin_vel[:, :2]
+
+        # Penalize horizontal motion (or reward zero horizontal velocity)
+        return torch.sum(torch.square(world_lin_vel_xy), dim=1)
 
     # def _reward_tracking_lin_vel_pb(self):
     #     delta_phi = ~self.reset_buf * (self._reward_tracking_lin_vel() - self.rwd_linVelTrackPrev)
