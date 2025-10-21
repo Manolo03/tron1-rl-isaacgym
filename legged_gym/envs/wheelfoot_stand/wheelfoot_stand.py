@@ -21,7 +21,7 @@ from legged_gym.utils.math import (
     wrap_to_pi,
     torch_rand_sqrt_float,
 )
-from .wheelfoot_jump_config import BipedCfgWF
+from .wheelfoot_stand_config import BipedCfgWF
 from legged_gym.utils.helpers import class_to_dict
 
 class BipedWF(BaseTask):
@@ -32,21 +32,44 @@ class BipedWF(BaseTask):
         self.sim_params = sim_params
         self.height_samples = None
 
-
         self.init_done = False
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.pi = torch.acos(torch.zeros(1, device=self.device)) * 2
         self.group_idx = torch.arange(0, self.cfg.env.num_envs)
 
-        self.has_jumped = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self.best_jump_height = torch.zeros(self.num_envs, device=self.device)
-
         if not self.headless:
             self.set_camera(self.cfg.viewer.pos, self.cfg.viewer.lookat)
         self._init_buffers()
         self._prepare_reward_function()
         self.init_done = True
+
+    def _reset_root_states(self, env_ids):
+        """
+        Non-randomized version: initializes position and velocities
+        to fixed values ​​(zero).
+        """
+        if self.custom_origins:
+            self.root_states[env_ids] = self.base_init_state
+            self.root_states[env_ids, :3] += self.env_origins[env_ids]
+            # Pas de random offset XY
+        else:
+            self.root_states[env_ids] = self.base_init_state
+            self.root_states[env_ids, :3] += self.env_origins[env_ids]
+
+        # ✅  Met les vitesses linéaires et angulaires à zéro
+        self.root_states[env_ids, 7:13] = torch.zeros(
+            (len(env_ids), 6), device=self.device
+        )
+
+        # Envoie les nouveaux états à PhysX
+        env_ids_int32 = env_ids.to(dtype=torch.int32)
+        self.gym.set_actor_root_state_tensor_indexed(
+            self.sim,
+            gymtorch.unwrap_tensor(self.root_states),
+            gymtorch.unwrap_tensor(env_ids_int32),
+            len(env_ids_int32),
+        )
 
     def reset_idx(self, env_ids):
         if len(env_ids) == 0:
@@ -64,10 +87,6 @@ class BipedWF(BaseTask):
         self._reset_root_states(env_ids)
         self._resample_commands(env_ids)
         # self._resample_gaits(env_ids)
-
-        # 👇 reset jump-related states
-        self.has_jumped[env_ids] = False
-        self.best_jump_height[env_ids] = 0.0
 
         # reset buffers
         self.last_actions[env_ids] = 0.0
@@ -145,21 +164,7 @@ class BipedWF(BaseTask):
             self.commands[:, :3] * self.commands_scale,
             self.critic_obs_buf # make sure critic_obs update in every for loop
         )
-    
-    def update_jump_phase(self):
-        current_height = torch.mean(
-            self.root_states[:, 2].unsqueeze(1) - self.measured_heights,
-            dim=1
-        )
-
-        # reached or surpassed jump target → mark as "has jumped"
-        reached_peak = current_height > self.cfg.rewards.jump_height_target * 0.95
-        self.has_jumped |= reached_peak  # once True, remains True until landing
-
-        # detect landing (back near baseline)
-        # landed = (current_height < 0.05) & self.has_jumped
-        # self.has_jumped[landed] = False
-
+        
     def _action_clip(self, actions):
         self.actions = actions
         
@@ -211,7 +216,6 @@ class BipedWF(BaseTask):
                 # self.gaits,
             ),
             dim=-1,
-            
         )
         critic_obs_buf = torch.cat((
             self.base_lin_vel * self.obs_scales.lin_vel, self.obs_buf), dim=-1)
@@ -355,18 +359,18 @@ class BipedWF(BaseTask):
             torch.norm(
                 self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 1.0, dim=1)
 
-    # def _reward_nominal_foot_position(self):
-    #     #1. calculate foot postion wrt base in base frame  
-    #     nominal_base_height = -(self.cfg.rewards.base_height_target- self.cfg.asset.foot_radius)
-    #     foot_positions_base = self.foot_positions - \
-    #                         (self.base_position).unsqueeze(1).repeat(1, len(self.feet_indices), 1)
-    #     reward = 0
-    #     for i in range(len(self.feet_indices)):
-    #         foot_positions_base[:, i, :] = quat_rotate_inverse(self.base_quat, foot_positions_base[:, i, :] )
-    #         height_error = nominal_base_height - foot_positions_base[:, i, 2]
-    #         reward += torch.exp(-(height_error ** 2)/ self.cfg.rewards.nominal_foot_position_tracking_sigma)
-    #     vel_cmd_norm = torch.norm(self.commands[:, :3], dim=1)
-    #     return reward / len(self.feet_indices)*torch.exp(-(vel_cmd_norm ** 2)/self.cfg.rewards.nominal_foot_position_tracking_sigma_wrt_v)
+    def _reward_nominal_foot_position(self):
+        #1. calculate foot postion wrt base in base frame  
+        nominal_base_height = -(self.cfg.rewards.base_height_target- self.cfg.asset.foot_radius)
+        foot_positions_base = self.foot_positions - \
+                            (self.base_position).unsqueeze(1).repeat(1, len(self.feet_indices), 1)
+        reward = 0
+        for i in range(len(self.feet_indices)):
+            foot_positions_base[:, i, :] = quat_rotate_inverse(self.base_quat, foot_positions_base[:, i, :] )
+            height_error = nominal_base_height - foot_positions_base[:, i, 2]
+            reward += torch.exp(-(height_error ** 2)/ self.cfg.rewards.nominal_foot_position_tracking_sigma)
+        vel_cmd_norm = torch.norm(self.commands[:, :3], dim=1)
+        return reward / len(self.feet_indices)*torch.exp(-(vel_cmd_norm ** 2)/self.cfg.rewards.nominal_foot_position_tracking_sigma_wrt_v)
     
     def _reward_same_foot_z_position(self):
         reward = 0
@@ -375,7 +379,7 @@ class BipedWF(BaseTask):
         for i in range(len(self.feet_indices)):
             foot_positions_base[:, i, :] = quat_rotate_inverse(self.base_quat, foot_positions_base[:, i, :] )
         foot_z_position_err = foot_positions_base[:,0,2] - foot_positions_base[:,1,2]
-        return torch.abs(foot_z_position_err) #passé à un carré ? ça peut être bien pour les distances
+        return foot_z_position_err ** 2
 
     def _reward_leg_symmetry(self):
         foot_positions_base = self.foot_positions - \
@@ -397,46 +401,8 @@ class BipedWF(BaseTask):
         return reward
 
     def _reward_lin_vel_z(self):
-        # Transform linear velocity into world frame
-        
-        # world_lin_vel = quat_apply(self.base_quat, self.base_lin_vel)
-        # z_vel = world_lin_vel[:, 2] # or 
-        z_vel = self.root_states[:, 5]
-
-        # Reward proportional to signed square (retains sign of velocity)
-        z_vel = torch.where(z_vel < 0, torch.zeros_like(z_vel), z_vel)
-
-        impulse_rew = torch.where(
-        self.has_jumped, 
-        torch.zeros_like(z_vel),  # no reward after jump
-        z_vel                      # reward only pre‑jump
-        )   
-        
-        return impulse_rew 
-    
-    # def _reward_lin_vel_z(self):
-
-    #     # Transform linear velocity into world frame
-    #     world_lin_vel = quat_apply(self.base_quat, self.base_lin_vel)
-    #     z_vel = world_lin_vel[:, 2]
-
-    #     # Reward proportional to signed square (retains sign of velocity)
-    #     z_vel = torch.where(z_vel < 0, torch.zeros_like(z_vel), z_vel)
-    #     return torch.square(z_vel)
-    
-    
-    # def _reward_lin_vel_z(self):
-    #     # Reward scales with vertical velocity in world coordinates.
-    #     # Positive z_vel -> positive reward (jumping up)
-    #     # Negative z_vel -> negative reward (falling down)
-
-    #     # Transform linear velocity into world frame
-    #     world_lin_vel = quat_apply(self.base_quat, self.base_lin_vel)
-    #     z_vel = world_lin_vel[:, 2]
-
-    #     # Reward proportional to signed square (retains sign of velocity)
-    #     # Alternatively, linear term (just z_vel) if you don't want quadratic scaling.
-    #     return torch.square(z_vel) * torch.sign(z_vel)
+        # Penalize z axis base linear velocity
+        return torch.square(self.base_lin_vel[:, 2])
 
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
@@ -476,11 +442,6 @@ class BipedWF(BaseTask):
         out_of_limits += (self.dof_pos - self.dof_pos_limits[:, 1]).clip(min=0.0)
         return torch.sum(out_of_limits, dim=1)
 
-    # def _reward_tracking_lin_vel(self):
-    #     # Tracking of linear velocity commands (xy axes)
-    #     lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
-    #     return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
-
     def _reward_tracking_lin_vel(self):
         # Compute base linear velocity in world coordinates
         world_lin_vel = quat_apply(self.base_quat, self.base_lin_vel)
@@ -496,11 +457,6 @@ class BipedWF(BaseTask):
     #     # return ang_vel_error
     #     return delta_phi / self.dt
 
-    # def _reward_tracking_ang_vel(self):
-    #     # Tracking of angular velocity commands (yaw)
-    #     ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 2])
-    #     return torch.exp(-ang_vel_error / self.cfg.rewards.ang_tracking_sigma)
-
     def _reward_tracking_ang_vel(self):
         # Penalize non zero yaw and roll rate of change of the base
         return torch.square(self.base_ang_vel[:, 2]) + torch.square(self.base_ang_vel[:, 0])
@@ -510,101 +466,10 @@ class BipedWF(BaseTask):
     #     # return ang_vel_error
     #     return delta_phi / self.dt
     
-    # def _reward_base_height(self):
-    #     # Penalize base height away from target
-    #     base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-    #     return torch.abs(base_height - self.cfg.rewards.base_height_target)
-    
-    # def _reward_jump_height(self):
-    #     # Exponential reward for being close to jump height target
-    #     jump_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-    #     return torch.exp(-((jump_height - self.cfg.rewards.jump_height_target) ** 2) / self.cfg.rewards.jump_height_sigma)
-    
-    def _reward_jump_height(self):
-        """
-        Reward for robot base height relative to desired target (rest vs jump).
-        Uses a combination of exponential (near target) and linear (far from target) terms
-        to provide both stable value and gradient when optimizing.
-        """
-        # --- Update jump phase (sets has_jumped, best_jump_height, etc.) ---
-        self.update_jump_phase()
-
-        # --- Compute current base height relative to terrain ---
-        current_height = torch.mean(
-            self.root_states[:, 2].unsqueeze(1) - self.measured_heights,
-            dim=1
-        )
-
-        # --- Track ratio to target to measure best apex reached ---
-        apex_score = torch.clamp(
-            current_height / self.cfg.rewards.jump_height_target, 0.0, 1.0
-        )
-        self.best_jump_height = torch.maximum(self.best_jump_height, apex_score)
-
-        # --- Choose target height (depends on jumping phase) ---
-        target_height = torch.where(
-            self.has_jumped,
-            torch.full_like(current_height, self.cfg.rewards.rest_height_target),
-            torch.full_like(current_height, self.cfg.rewards.jump_height_target),
-        )
-
-        # --- Exponential proximity reward (precise near target) ---
-        proximity_rew = torch.exp(
-            -((current_height - target_height) ** 2)
-            / self.cfg.rewards.jump_height_sigma
-        )
-
-        # --- Linear term (keeps gradient alive far from goal) ---
-        height_diff = target_height - current_height
-        linear_term = torch.clamp(
-            1.0 - (torch.abs(height_diff) / target_height),
-            0.0, 1.0
-        )
-
-        # --- Combine both rewards (weights adjustable) ---
-        combined_rew = 0.8 * proximity_rew + 0.2 * linear_term
-
-        # --- Scale landing reward by achieved apex quality ---
-        scaled_rew = torch.where(
-            self.has_jumped,
-            combined_rew * self.best_jump_height,
-            combined_rew
-        )
-
-        return scaled_rew
-
-    # def _reward_jump_height(self):
-    #     self.update_jump_phase()
-
-    #     # Get current height
-    #     jump_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-
-    #     # Compute current apex performance (clip to 0–1)
-    #     apex_score = torch.clamp(jump_height / self.cfg.rewards.jump_height_target, 0.0, 1.0)
-    #     self.best_jump_height = torch.maximum(self.best_jump_height, apex_score)
-
-    #     # Choose target depending on whether already jumped or not
-    #     target_height = torch.where(
-    #         self.has_jumped,
-    #         torch.full_like(jump_height, self.cfg.rewards.rest_height_target),  # rest target (e.g. ground level)
-    #         torch.full_like(jump_height, self.cfg.rewards.jump_height_target),  # upward
-    #     )
-
-    #     # Base exponential proximity term
-    #     proximity_rew = torch.exp(-((jump_height - target_height) ** 2) / self.cfg.rewards.jump_height_sigma)
-
-    #     # Scale reward when in landing phase based on how well apex was reached
-    #     scaled_rew = torch.where(
-    #         self.has_jumped,
-    #         proximity_rew * self.best_jump_height,   # reward for staying low scales with jump quality
-    #         proximity_rew                           # pre‑jump upward reward
-    #     )
-
-    #     # # Reset scaling when back to rest
-    #     # landed = (jump_height < 0.05) & self.has_jumped
-    #     # self.best_jump_height[landed] = 0.0
-
-    #     return scaled_rew
+    def _reward_base_height(self):
+        # Penalize base height away from target
+        base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
+        return torch.abs(base_height - self.cfg.rewards.base_height_target)
     
     def _reward_stay_near_start_xy(self):
         # Penalize deviation in x and y from starting position
@@ -613,26 +478,3 @@ class BipedWF(BaseTask):
         current_xy = self.base_position[:, :2]
         xy_error = torch.norm(current_xy - start_xy, dim=1)
         return xy_error
-    
-    def _reward_prejump_unload(self):
-        """
-        Reward the robot for not having contact with the ground
-        """
-
-        # Get contact force magnitudes for all feet or wheel links
-        # self.contact_forces: [num_envs, num_bodies, 3]
-        # self.feet_indices:   list/array of link indices for contact points
-        contact_forces = torch.norm(self.contact_forces[:, self.feet_indices], dim=-1)  # [num_envs, num_feet]
-
-        # Sum total contact per environment
-        total_contact = torch.sum(contact_forces, dim=1)  # [num_envs]
-
-        # Reward = high when total contact is *small* before jump
-        #    Use torch.where to apply only before jump phase
-        unload_rew = torch.where(
-            self.has_jumped,
-            torch.zeros_like(total_contact),  # zero reward after jump
-            total_contact
-        )
-
-        return unload_rew

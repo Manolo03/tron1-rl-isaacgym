@@ -115,7 +115,7 @@ class BipedCfgWF(BaseConfig):
         min_norm = 0.1
 
         class ranges:
-            lin_vel_x = [-1.0, 1.0]  # min max [m/s]
+            lin_vel_x = [-4.0, 4.0]  # min max [m/s]
             lin_vel_y = [0, 0]  # min max [m/s]
             # lin_vel_x = [-1.7, 1.7]  # min max [m/s]
             # lin_vel_y = [-1.7, 1.7]  # min max [m/s]

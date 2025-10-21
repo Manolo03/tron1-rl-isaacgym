@@ -38,12 +38,6 @@ class Logger:
                 self.rew_log[key].append(float(value.item()))
         self.num_episodes += num_episodes
 
-    def log_rewards_step(self, reward_dict):
-        """Log per-step reward components for plotting evolution through the episode."""
-        for key, value in reward_dict.items():
-            if "rew" in key:
-                self.rew_log[key].append(float(value.item()))
-
     def reset(self):
         self.state_log.clear()
         self.rew_log.clear()
@@ -167,46 +161,7 @@ class Logger:
         plt.tight_layout()
         plt.show()
 
-    # ------------------------------------------------------------
-    # 🟢 New: plot rewards in a separate window
-    # ------------------------------------------------------------
-    def plot_rewards(self):
-        """Ouvre une fenêtre séparée affichant un sous‑graphique par terme de récompense."""
-        self.plot_reward_process = Process(target=self._plot_rewards)
-        self.plot_reward_process.start()
-
-
-    def _plot_rewards(self):
-        if len(self.rew_log) == 0:
-            print("Aucune donnée de récompense à tracer.")
-            return
-
-        rew_keys = list(self.rew_log.keys())
-        n_keys = len(rew_keys)
-
-        # ➡️ une ligne (subplot) par type de récompense
-        fig, axs = plt.subplots(n_keys, 1, figsize=(8, 3 * n_keys), sharex=True)
-        if n_keys == 1:
-            axs = [axs]  # pour itérer même s’il n’y a qu’un seul subplot
-
-        fig.suptitle("Logger – Reward evolution per step", fontsize=14)
-
-        # Axe temporel (dt * nb_samples)
-        n = len(next(iter(self.rew_log.values())))
-        time = np.linspace(0, n * self.dt, n)
-
-        # tracer chaque composante dans son propre subplot
-        for i, key in enumerate(rew_keys):
-            vals = self.rew_log[key]
-            axs[i].plot(time, vals, color="tab:blue")
-            axs[i].set_ylabel(key)
-            axs[i].grid(True)
-
-        axs[-1].set_xlabel("time [s]")
-
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.show()
-
+   
     # ------------------------------------------------------------
     # Stats print
     # ------------------------------------------------------------

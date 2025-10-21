@@ -76,7 +76,7 @@ def play(args):
     # get robot_type
     robot_type = os.getenv("ROBOT_TYPE")
     commands_val = to_torch([0.5, 0.0, 0, 0], device=env.device) if robot_type.startswith("PF")\
-        else to_torch([1.0, 0.0, 0.0], device=env.device) if robot_type == "WF_TRON1A" else to_torch([1.5, 0.0, 0.0, 0.0, 0.0])
+        else to_torch([4.0, 0.0, 0.0], device=env.device) if robot_type == "WF_TRON1A" else to_torch([1.5, 0.0, 0.0, 0.0, 0.0])
     action_scale = env.cfg.control.action_scale_pos if robot_type == "WF_TRON1A"\
         else env.cfg.control.action_scale
     obs, obs_history, commands, _ = env.get_observations()
@@ -120,7 +120,7 @@ def play(args):
     logger = Logger(env.dt)
     robot_index = 5  # which robot is used for logging
     joint_index = 1  # which joint is used for logging
-    stop_state_log = 100  # number of steps before plotting states
+    stop_state_log = 500  # number of steps before plotting states
     stop_rew_log = (
         env.max_episode_length + 1
     )  # number of steps before print average episode rewards
@@ -138,9 +138,6 @@ def play(args):
         obs, rews, dones, infos, obs_history, commands, _ = env.step(
             actions.detach()
         )
-
-        if hasattr(env, "rew_dict"):
-            logger.log_rewards_step(env.rew_dict)
 
         if RECORD_FRAMES:
             if i % 2:
@@ -205,7 +202,6 @@ def play(args):
                 )
         elif i == stop_state_log:
             logger.plot_states()
-            #logger.plot_rewards()
 
         if 0 < i < stop_rew_log:
             if infos["episode"]:

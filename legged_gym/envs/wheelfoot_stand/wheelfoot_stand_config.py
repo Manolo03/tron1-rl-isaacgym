@@ -34,10 +34,9 @@ class BipedCfgWF(BaseConfig):
     class env:
         num_envs = 8192
         num_observations = 30 + 6 - 2 - 4 - 2  # +6 means wheel obs,-2 means sin&cos clock, -4 means gait para nums -2 means wheels pos
-                                               #28 = 3 (base angle) + 3 (projected gravity) + 6 (dof_pos) + 8 (dof_vel) + 8 (actions)
         num_critic_observations = 3 + num_observations
         num_height_samples = 117
-        num_actions = 8 # 2*3 joint or each leg + 2* speed angular velocity (indice 3 et 7)
+        num_actions = 8
         env_spacing = 3.0  # not used with heightfields/trimeshes
         send_timeouts = True  # send time out information to the algorithm
         episode_length_s = 20  # episode length in seconds
@@ -137,21 +136,21 @@ class BipedCfgWF(BaseConfig):
             swing_height = [0.0, 0.1]
 
     class init_state:
-        pos = [0.0, 0.0, 0.8 + 0.1664]  # x,y,z [m]
-        rot = [0.0, 0.0, 0.0, 1.0]  # x,y,z,w [quat]
+        pos = [0.0, 0.0, 0.422]  # x,y,z [m]
+        rot = [0.0, 0.441, 0.0, 0.898]  # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
         default_joint_angles = {  # target angles when action = 0.0
-            "abad_L_Joint": 0.0,
-            "hip_L_Joint": 0.0,
-            "knee_L_Joint": 0.0,
+            "abad_L_Joint": 0.1543,
+            "hip_L_Joint": -1.0124,
+            "knee_L_Joint": 1.3614,
             "foot_L_Joint": 0.0,
-            "abad_R_Joint": 0.0,
-            "hip_R_Joint": 0.0,
-            "knee_R_Joint": 0.0,
+            "abad_R_Joint": -0.1543,
+            "hip_R_Joint": 1.0124,
+            "knee_R_Joint": -1.3614,
             "foot_R_Joint": 0.0,
-            "wheel_L_Joint": 0.0,
-            "wheel_R_Joint": 0.0,
+            "wheel_L_Joint": 1.8689,
+            "wheel_R_Joint": 1.8689,
         }
 
     class control:
@@ -232,7 +231,7 @@ class BipedCfgWF(BaseConfig):
         randomize_Kd_range = [0.8, 1.2]
         randomize_motor_torque = True
         randomize_motor_torque_range = [0.8, 1.2]
-        randomize_default_dof_pos = True
+        randomize_default_dof_pos = False
         randomize_default_dof_pos_range = [-0.05, 0.05]
         randomize_action_delay = True
         randomize_imu_offset = True
@@ -243,38 +242,34 @@ class BipedCfgWF(BaseConfig):
     class rewards:
         class scales:
             # termination related rewards
-            keep_balance = 1 #2
+            keep_balance = 1.0
 
-            # task related rewards
-            #tracking_lin_vel = -10.0
-            #tracking_ang_vel = -5.0
-            jump_height = 10
+            # tracking related rewards
+            tracking_lin_vel = 4.0
+            tracking_ang_vel = 2.0
             # tracking_lin_vel_pb = 1.0
             # tracking_ang_vel_pb = 0.2
 
             # regulation related rewards
-            #nominal_foot_position = 4.0
-            #leg_symmetry = 1.0
-            #same_foot_x_position = -2 # 0.5
-            same_foot_z_position = -10
-            lin_vel_z = 10
-            # ang_vel_xy = -0.3
+            nominal_foot_position = 4.0
+            leg_symmetry = 0.5
+            same_foot_x_position = -50 # 0.5
+            same_foot_z_position = -100
+            lin_vel_z = -0.3
+            ang_vel_xy = -0.3
             torques = -0.00016
-            # dof_acc = -1.5e-7
-            action_rate = -0.02
-            #dof_pos_limits = -5.0 #so that it doesn't stretch legs
-            collision = -50 #-50
-            prejump_unload = -0.005 #-0.1
-            # action_smooth = -0.01
-            #orientation = -12.0
-            # feet_distance = -25
-            #base_height = -20
-            
-            # stay_near_start_xy = -5
+            dof_acc = -1.5e-7
+            action_rate = -0.03
+            dof_pos_limits = -2.0
+            collision = -50
+            action_smooth = -0.03
+            orientation = -12.0
+            feet_distance = -100
+            base_height = -20
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
         clip_reward = 100
-        clip_single_reward = 10
+        clip_single_reward = 5
         tracking_sigma = 0.2  # tracking reward = exp(-error^2/sigma)
         ang_tracking_sigma = 0.25  # tracking reward = exp(-error^2/sigma)
         nominal_foot_position_tracking_sigma = 0.005
@@ -287,9 +282,7 @@ class BipedCfgWF(BaseConfig):
         )
         soft_dof_vel_limit = 1.0
         soft_torque_limit = 0.8
-        jump_height_target = 0.845 + 0.127 + 0.10 #0.845 is all stretched, 0.127 wheel radius, 0.20 is jump height above max height stretched
-        rest_height_target = 0.6 + 0.127
-        # base_height_target = 0.6 + 0.1664
+        base_height_target = 0.6 + 0.1664
         feet_height_target = 0.10
         min_feet_distance = 0.32
         max_feet_distance = 0.35
@@ -299,7 +292,6 @@ class BipedCfgWF(BaseConfig):
         gait_vel_sigma = 0.25
         gait_height_sigma = 0.005
         feet_height_tracking_sigma = 0.005
-        jump_height_sigma = 0.1
 
     class normalization:
         class obs_scales:
