@@ -29,7 +29,7 @@ print("✅ Ground plane added (z = 0)")
 # -------------------------------------------------------
 # 3️⃣  Describe robot initial state (no class needed)
 # -------------------------------------------------------
-pos = [0.0, 0.0, 0.422]                  # x, y, z [m]
+pos = [0.0, 0.0, 0.5]                  # x, y, z [m]
 # 90° pitch forward (around Y)
 rot = [0.0, 0.441, 0.0, 0.898]            # x, y, z, w quaternion
 lin_vel = [0.0, 0.0, 0.0]              # linear velocity

@@ -70,6 +70,153 @@ class BipedWF(BaseTask):
             gymtorch.unwrap_tensor(env_ids_int32),
             len(env_ids_int32),
         )
+    
+    def _reset_dofs(self, env_ids):
+        """
+        Non‑random version:
+        Resets DOF positions and velocities of selected environments
+        to their default values (defined in cfg.init_state.default_joint_angles).
+        """
+
+        # ✅ Set positions exactly to default (no random noise)
+        self.dof_pos[env_ids] = self.default_dof_pos[env_ids, :]
+
+        # ✅ Set all joint velocities to zero
+        self.dof_vel[env_ids] = 0.0
+
+        # Push updated states to PhysX
+        env_ids_int32 = env_ids.to(dtype=torch.int32)
+        self.gym.set_dof_state_tensor_indexed(
+            self.sim,
+            gymtorch.unwrap_tensor(self.dof_state),
+            gymtorch.unwrap_tensor(env_ids_int32),
+            len(env_ids_int32),
+        )
+
+    # def check_termination(self):
+    #     """Check if environments need to be reset, with grace period for contact counting."""
+
+    #     # ---- 1️⃣  Initialisation (une seule fois) ----
+    #     if not hasattr(self, "bad_contact_count"):
+    #         self.bad_contact_count = torch.zeros(self.num_envs, device=self.device)
+    #         self.last_bad_contacts = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
+    #     # ---- 2️⃣  Masque temporel (grace period de 1 seconde de simulation) ----
+    #     active_mask = self.envs_steps_buf * self.dt > 0  # on n'active la terminaison qu'après 1 s
+
+    #     # ---- 3️⃣  Détection des contacts ----
+    #     bad_contacts = torch.any(
+    #         torch.norm(
+    #             self.contact_forces[:, self.termination_contact_indices, :], dim=-1
+    #         ) > 10.0,
+    #         dim=1,
+    #     )
+
+    #     # Nouveau contact uniquement (uniquement après la période de grâce)
+    #     new_contacts = (bad_contacts & ~self.last_bad_contacts) & active_mask
+    #     self.bad_contact_count += new_contacts.float()
+    #     self.last_bad_contacts = bad_contacts.clone()
+
+    #     # ---- 4️⃣  Détection d'orientation problématique ----
+    #     orientation_fail = (self.projected_gravity[:, 2] > -0.1) & active_mask  # activé après 1s également
+
+    #     # ---- 5️⃣  Condition combinée de terminaison ----
+    #     fail_buf = (self.bad_contact_count > 1) | orientation_fail
+    #     self.fail_buf += fail_buf
+
+    #     # ---- 6️⃣  Timeout et bords de terrain ----
+    #     self.time_out_buf = self.episode_length_buf > self.max_episode_length
+    #     if self.cfg.terrain.mesh_type in ["heightfield", "trimesh"]:
+    #         self.edge_reset_buf = self.base_position[:, 0] > self.terrain_x_max - 1
+    #         self.edge_reset_buf |= self.base_position[:, 0] < self.terrain_x_min + 1
+    #         self.edge_reset_buf |= self.base_position[:, 1] > self.terrain_y_max - 1
+    #         self.edge_reset_buf |= self.base_position[:, 1] < self.terrain_y_min + 1
+
+    #     # ---- 7️⃣  Condition finale de reset ----
+    #     self.reset_buf = (
+    #         (self.fail_buf > self.cfg.env.fail_to_terminal_time_s / self.dt)
+    #         | self.time_out_buf
+    #         | self.edge_reset_buf
+    #     )
+
+        # # ---- 8️⃣  Debug print ----
+        # terminated_envs = self.reset_buf.nonzero(as_tuple=False).flatten()
+        # if len(terminated_envs) > 0:
+        #     contact_fail = (self.bad_contact_count > 1)[terminated_envs]
+        #     orientation_fail_env = orientation_fail[terminated_envs]
+        #     msg = []
+        #     for i, env_id in enumerate(terminated_envs.tolist()):
+        #         if contact_fail[i]:
+        #             reason = "contact_count>1"
+        #         elif orientation_fail_env[i]:
+        #             reason = "orientation_fail"
+        #         elif self.time_out_buf[env_id]:
+        #             reason = "timeout"
+        #         elif self.edge_reset_buf[env_id]:
+        #             reason = "edge"
+        #         else:
+        #             reason = "unknown"
+        #         step_count = int(self.envs_steps_buf[env_id].item())
+        #         episode_time_s = step_count * self.dt
+        #         msg.append(f"[Termination] Env {env_id:04d} -> {reason} (step={step_count}, time={episode_time_s:.2f}s)")
+        #     print("\n".join(msg))
+
+    def check_termination(self):
+        """Check if environments need to be reset.
+        Contact termination is disabled for the first 4s of simulation.
+        """
+
+        # ---- 1️⃣  Grace period mask (4 s of simulated time) ----
+        grace_period_s = 1.5
+        active_mask = self.envs_steps_buf * self.dt > grace_period_s
+
+        # ---- 2️⃣  Contact force‑based termination (active after 4s) ----
+        contact_force_exceeded = torch.any(
+            torch.norm(
+                self.contact_forces[:, self.termination_contact_indices, :], dim=-1
+            ) > 10.0,
+            dim=1,
+        )
+        contact_fail = contact_force_exceeded & active_mask
+
+        # ---- 3️⃣  Orientation failure (also masked during grace period) ----
+        orientation_fail = (self.projected_gravity[:, 2] > -0.1) & active_mask
+
+        # ---- 4️⃣  Combine both failure conditions ----
+        fail_buf = contact_fail | orientation_fail
+        self.fail_buf += fail_buf
+
+        # ---- 5️⃣  Timeout and edge detection ----
+        self.time_out_buf = self.episode_length_buf > self.max_episode_length
+        if self.cfg.terrain.mesh_type in ["heightfield", "trimesh"]:
+            self.edge_reset_buf = self.base_position[:, 0] > self.terrain_x_max - 1
+            self.edge_reset_buf |= self.base_position[:, 0] < self.terrain_x_min + 1
+            self.edge_reset_buf |= self.base_position[:, 1] > self.terrain_y_max - 1
+            self.edge_reset_buf |= self.base_position[:, 1] < self.terrain_y_min + 1
+
+        # ---- 6️⃣  Final reset condition ----
+        self.reset_buf = (
+            (self.fail_buf > self.cfg.env.fail_to_terminal_time_s / self.dt)
+            | self.time_out_buf
+            | self.edge_reset_buf
+        )
+
+        # # ---- 7️⃣  Optional debug print ----
+        # terminated_envs = self.reset_buf.nonzero(as_tuple=False).flatten()
+        # if len(terminated_envs) > 0:
+        #     msg = []
+        #     for env_id in terminated_envs.tolist():
+        #         reason = (
+        #             "contact_fail" if contact_fail[env_id]
+        #             else "orientation_fail" if orientation_fail[env_id]
+        #             else "timeout" if self.time_out_buf[env_id]
+        #             else "edge" if self.edge_reset_buf[env_id]
+        #             else "unknown"
+        #         )
+        #         step_count = int(self.envs_steps_buf[env_id].item())
+        #         episode_time_s = step_count * self.dt
+        #         msg.append(f"[Termination] Env {env_id:04d} -> {reason} (step={step_count}, time={episode_time_s:.2f}s)")
+        #     print("\n".join(msg))
 
     def reset_idx(self, env_ids):
         if len(env_ids) == 0:
@@ -105,6 +252,9 @@ class BipedWF(BaseTask):
         self.fail_buf[env_ids] = 0
         self.action_fifo[env_ids] = 0
         self.dof_pos_int[env_ids] = 0
+
+        self.bad_contact_count[env_ids] = 0
+        self.last_bad_contacts[env_ids] = False
         # fill extras
         self.extras["episode"] = {}
         for key in self.episode_sums.keys():
@@ -343,6 +493,10 @@ class BipedWF(BaseTask):
         self.wheel_lin_vel = torch.zeros_like(self.foot_velocities)
         self.wheel_ang_vel = torch.zeros_like(self.base_ang_vel)
 
+        # --- Buffers pour la terminaison ---
+        self.bad_contact_count = torch.zeros(self.num_envs, device=self.device)
+        self.last_bad_contacts = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
     # ------------ reward functions----------------
 
     def _reward_feet_distance(self):
@@ -469,7 +623,9 @@ class BipedWF(BaseTask):
     def _reward_base_height(self):
         # Penalize base height away from target
         base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-        return torch.abs(base_height - self.cfg.rewards.base_height_target)
+        height_error = (base_height - self.cfg.rewards.base_height_target)**2
+        #return torch.norm(base_height - self.cfg.rewards.base_height_target)
+        return torch.exp(-height_error / self.cfg.rewards.height_tracking_sigma)
     
     def _reward_stay_near_start_xy(self):
         # Penalize deviation in x and y from starting position

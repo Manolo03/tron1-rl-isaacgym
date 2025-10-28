@@ -73,6 +73,9 @@ def play(args):
 
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
+    # ✅  Force an explicit full reset before starting the main loop
+    print("🔄 Performing explicit full reset before play loop...")
+    env.reset()
     # get robot_type
     robot_type = os.getenv("ROBOT_TYPE")
     commands_val = to_torch([0.5, 0.0, 0, 0], device=env.device) if robot_type.startswith("PF")\
@@ -160,7 +163,19 @@ def play(args):
             camera_position = target_position + camera_offset
             # env.set_camera(camera_position, target_position)
 
-        if i < stop_state_log:
+        # --- Log uniquement la toute première simulation ---
+        if not hasattr(env, "first_reset_done"):
+            env.first_reset_done = False
+            env.first_reset_detected = False
+
+        # Dès qu'un reset est détecté pour la première fois, on garde un flag
+        if not env.first_reset_done and torch.any(env.reset_buf):
+            env.first_reset_done = True
+            env.first_reset_detected = True
+            print("✅ Premier reset détecté — les logs suivants ne seront plus enregistrés dans le graphe.")
+
+        # On n’enregistre que si on est avant le premier reset
+        if not env.first_reset_done:
             logger.log_states(
                 {
                     "dof_pos_target": actions[robot_index, joint_index].item() * action_scale,
@@ -188,8 +203,7 @@ def play(args):
                     .numpy(),
                 }
             )
-            # print(torch.sum(env.power[robot_index, :]).item())
-            if est != None:
+            if est is not None:
                 logger.log_states(
                     {
                         "est_lin_vel_x": est[robot_index, 0].item()
@@ -200,16 +214,62 @@ def play(args):
                         / env.cfg.normalization.obs_scales.lin_vel,
                     }
                 )
-        elif i == stop_state_log:
-            logger.plot_states()
 
-        if 0 < i < stop_rew_log:
-            if infos["episode"]:
-                num_episodes = torch.sum(env.reset_buf).item()
-                if num_episodes > 0:
-                    logger.log_rewards(infos["episode"], num_episodes)
-        elif i == stop_rew_log:
-            logger.print_rewards()
+        # Quand la première simulation s’est terminée, on peut tracer une fois
+        if getattr(env, "first_reset_detected", False):
+            logger.plot_states()
+            env.first_reset_detected = False  # pour éviter de re‑tracer à chaque itération
+
+        # if i < stop_state_log:
+        #     logger.log_states(
+        #         {
+        #             "dof_pos_target": actions[robot_index, joint_index].item() * action_scale,
+        #             "dof_pos": (
+        #                 env.dof_pos[robot_index, joint_index]
+        #                 - env.raw_default_dof_pos[joint_index]
+        #             ).item(),
+        #             "dof_vel": env.dof_vel[robot_index, joint_index].item(),
+        #             "dof_torque": env.torques[robot_index, joint_index].item(),
+        #             "command_x": env.commands[robot_index, 0].item(),
+        #             "command_y": env.commands[robot_index, 1].item(),
+        #             "command_yaw": env.commands[robot_index, 2].item(),
+        #             "base_vel_x": env.base_lin_vel[robot_index, 0].item(),
+        #             "base_vel_y": env.base_lin_vel[robot_index, 1].item(),
+        #             "base_vel_z": env.base_lin_vel[robot_index, 2].item(),
+        #             "base_vel_yaw": env.base_ang_vel[robot_index, 2].item(),
+        #             "base_pos_x": env.base_position[robot_index, 0].item(),
+        #             "base_pos_y": env.base_position[robot_index, 1].item(),
+        #             "base_pos_z": env.base_position[robot_index, 2].item(),
+        #             "power": torch.sum(env.power[robot_index, :]).item(),
+        #             "contact_forces_z": env.contact_forces[
+        #                 robot_index, env.feet_indices, 2
+        #             ]
+        #             .cpu()
+        #             .numpy(),
+        #         }
+        #     )
+        #     # print(torch.sum(env.power[robot_index, :]).item())
+        #     if est != None:
+        #         logger.log_states(
+        #             {
+        #                 "est_lin_vel_x": est[robot_index, 0].item()
+        #                 / env.cfg.normalization.obs_scales.lin_vel,
+        #                 "est_lin_vel_y": est[robot_index, 1].item()
+        #                 / env.cfg.normalization.obs_scales.lin_vel,
+        #                 "est_lin_vel_z": est[robot_index, 2].item()
+        #                 / env.cfg.normalization.obs_scales.lin_vel,
+        #             }
+        #         )
+        # elif i == stop_state_log:
+        #     logger.plot_states()
+
+        # if 0 < i < stop_rew_log:
+        #     if infos["episode"]:
+        #         num_episodes = torch.sum(env.reset_buf).item()
+        #         if num_episodes > 0:
+        #             logger.log_rewards(infos["episode"], num_episodes)
+        # elif i == stop_rew_log:
+        #     logger.print_rewards()
 
 
 if __name__ == "__main__":
