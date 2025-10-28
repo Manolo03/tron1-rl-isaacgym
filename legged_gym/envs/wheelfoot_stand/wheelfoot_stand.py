@@ -201,22 +201,22 @@ class BipedWF(BaseTask):
             | self.edge_reset_buf
         )
 
-        # # ---- 7️⃣  Optional debug print ----
-        # terminated_envs = self.reset_buf.nonzero(as_tuple=False).flatten()
-        # if len(terminated_envs) > 0:
-        #     msg = []
-        #     for env_id in terminated_envs.tolist():
-        #         reason = (
-        #             "contact_fail" if contact_fail[env_id]
-        #             else "orientation_fail" if orientation_fail[env_id]
-        #             else "timeout" if self.time_out_buf[env_id]
-        #             else "edge" if self.edge_reset_buf[env_id]
-        #             else "unknown"
-        #         )
-        #         step_count = int(self.envs_steps_buf[env_id].item())
-        #         episode_time_s = step_count * self.dt
-        #         msg.append(f"[Termination] Env {env_id:04d} -> {reason} (step={step_count}, time={episode_time_s:.2f}s)")
-        #     print("\n".join(msg))
+        # ---- 7️⃣  Optional debug print ----
+        terminated_envs = self.reset_buf.nonzero(as_tuple=False).flatten()
+        if len(terminated_envs) > 0:
+            msg = []
+            for env_id in terminated_envs.tolist():
+                reason = (
+                    "contact_fail" if contact_fail[env_id]
+                    else "orientation_fail" if orientation_fail[env_id]
+                    else "timeout" if self.time_out_buf[env_id]
+                    else "edge" if self.edge_reset_buf[env_id]
+                    else "unknown"
+                )
+                step_count = int(self.envs_steps_buf[env_id].item())
+                episode_time_s = step_count * self.dt
+                msg.append(f"[Termination] Env {env_id:04d} -> {reason} (step={step_count}, time={episode_time_s:.2f}s)")
+            print("\n".join(msg))
 
     def reset_idx(self, env_ids):
         if len(env_ids) == 0:
