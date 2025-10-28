@@ -246,7 +246,7 @@ class BipedCfgWF(BaseConfig):
 
             # tracking related rewards
             tracking_lin_vel = -4.0
-            #tracking_ang_vel = -2.0
+            tracking_ang_vel = -2.0
             base_height = 5
             # tracking_lin_vel_pb = 1.0
             # tracking_ang_vel_pb = 0.2

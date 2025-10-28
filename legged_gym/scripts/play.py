@@ -270,6 +270,8 @@ def play(args):
         #             logger.log_rewards(infos["episode"], num_episodes)
         # elif i == stop_rew_log:
         #     logger.print_rewards()
+    print("Simulation complete. Environment is now idle — no torques being sent.")
+    input("Press ENTER to close viewer...")
 
 
 if __name__ == "__main__":
