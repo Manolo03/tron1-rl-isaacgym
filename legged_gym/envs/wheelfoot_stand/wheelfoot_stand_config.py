@@ -115,11 +115,11 @@ class BipedCfgWF(BaseConfig):
         min_norm = 0.1
 
         class ranges:
-            lin_vel_x = [-1.0, 1.0]  # min max [m/s]
+            lin_vel_x = [0, 0]  # min max [m/s]
             lin_vel_y = [0, 0]  # min max [m/s]
             # lin_vel_x = [-1.7, 1.7]  # min max [m/s]
             # lin_vel_y = [-1.7, 1.7]  # min max [m/s]
-            ang_vel_yaw = [-0.6, 0.6]  # min max [rad/s]
+            ang_vel_yaw = [0.0, 0.0]  # min max [rad/s]
             heading = [-3.14159, 3.14159]
 
     class gait:
@@ -136,6 +136,34 @@ class BipedCfgWF(BaseConfig):
             swing_height = [0.0, 0.1]
 
     class init_state:
+        pos = [0.0, 0.0, 0.6 + 0.127]  # x,y,z [m]
+        rot = [0.0, 0.0, 0.0, 1]  # x,y,z,w [quat]
+        lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
+        ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
+        default_joint_angles = {  # target angles when action = 0.0
+            # "abad_L_Joint": 0.1543,
+            # "hip_L_Joint": -1.0124,
+            # "knee_L_Joint": 1.3614,
+            # "foot_L_Joint": 0.0,
+            # "abad_R_Joint": -0.1543,
+            # "hip_R_Joint": 1.0124,
+            # "knee_R_Joint": -1.3614,
+            # "foot_R_Joint": 0.0,
+            # "wheel_L_Joint": 1.8689,
+            # "wheel_R_Joint": 1.8689,
+            "abad_L_Joint": 0.0,
+            "hip_L_Joint": 0.0,
+            "knee_L_Joint": 0.0,
+            "foot_L_Joint": 0.0,
+            "abad_R_Joint": 0.0,
+            "hip_R_Joint": 0.0,
+            "knee_R_Joint": 0.0,
+            "foot_R_Joint": 0.0,
+            "wheel_L_Joint": 0.0,
+            "wheel_R_Joint": 0.0,
+        }
+    
+    class custom_init_state:
         pos = [0.0, 0.0, 0.5]  # x,y,z [m]
         rot = [0.0, 0.441, 0.0, 0.898]  # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
@@ -152,6 +180,7 @@ class BipedCfgWF(BaseConfig):
             "wheel_L_Joint": 1.8689,
             "wheel_R_Joint": 1.8689,
         }
+
 
     class control:
         action_scale_pos = 0.25
@@ -242,11 +271,11 @@ class BipedCfgWF(BaseConfig):
     class rewards:
         class scales:
             # termination related rewards
-            keep_balance = 1.0
+            keep_balance = 2.0
 
             # tracking related rewards
             tracking_lin_vel = -4.0
-            tracking_ang_vel = -2.0
+            tracking_ang_vel = -1.0
             base_height = 5
             # tracking_lin_vel_pb = 1.0
             # tracking_ang_vel_pb = 0.2
@@ -255,13 +284,13 @@ class BipedCfgWF(BaseConfig):
             #nominal_foot_position = 4.0
             leg_symmetry = 0.5
             same_foot_x_position = -50 # 0.5
-            same_foot_z_position = -100
+            #same_foot_z_position = -100
             #lin_vel_z = -0.3
             #ang_vel_xy = -0.3
             torques = -0.00016
             dof_acc = -1.5e-7
             action_rate = -0.03
-            #dof_pos_limits = -2.0
+            dof_pos_limits = -2.0
             collision = -50
             action_smooth = -0.03
             orientation = -12.0

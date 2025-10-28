@@ -49,12 +49,23 @@ class BipedWF(BaseTask):
         Non-randomized version: initializes position and velocities
         to fixed values ​​(zero).
         """
+
+        base_init_state_list = (
+            self.cfg.custom_init_state.pos
+            + self.cfg.custom_init_state.rot
+            + self.cfg.custom_init_state.lin_vel
+            + self.cfg.custom_init_state.ang_vel
+        )
+        base_init_state = to_torch(
+            base_init_state_list, device=self.device, requires_grad=False
+        )
+
         if self.custom_origins:
-            self.root_states[env_ids] = self.base_init_state
+            self.root_states[env_ids] = base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
             # Pas de random offset XY
         else:
-            self.root_states[env_ids] = self.base_init_state
+            self.root_states[env_ids] = base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
 
         # ✅  Met les vitesses linéaires et angulaires à zéro
@@ -79,7 +90,9 @@ class BipedWF(BaseTask):
         """
 
         # ✅ Set positions exactly to default (no random noise)
-        self.dof_pos[env_ids] = self.default_dof_pos[env_ids, :]
+        self.dof_pos[env_ids] = self.init_dof_pos[env_ids, :]
+        # self.dof_pos[env_ids] = self.default_dof_pos[env_ids, :]
+        
 
         # ✅ Set all joint velocities to zero
         self.dof_vel[env_ids] = 0.0
@@ -167,7 +180,7 @@ class BipedWF(BaseTask):
         """
 
         # ---- 1️⃣  Grace period mask (4 s of simulated time) ----
-        grace_period_s = 1.5
+        grace_period_s = 1.25
         active_mask = self.envs_steps_buf * self.dt > grace_period_s
 
         # ---- 2️⃣  Contact force‑based termination (active after 4s) ----
@@ -201,22 +214,27 @@ class BipedWF(BaseTask):
             | self.edge_reset_buf
         )
 
-        # ---- 7️⃣  Optional debug print ----
-        terminated_envs = self.reset_buf.nonzero(as_tuple=False).flatten()
-        if len(terminated_envs) > 0:
-            msg = []
-            for env_id in terminated_envs.tolist():
-                reason = (
-                    "contact_fail" if contact_fail[env_id]
-                    else "orientation_fail" if orientation_fail[env_id]
-                    else "timeout" if self.time_out_buf[env_id]
-                    else "edge" if self.edge_reset_buf[env_id]
-                    else "unknown"
-                )
-                step_count = int(self.envs_steps_buf[env_id].item())
-                episode_time_s = step_count * self.dt
-                msg.append(f"[Termination] Env {env_id:04d} -> {reason} (step={step_count}, time={episode_time_s:.2f}s)")
-            print("\n".join(msg))
+        # # ---- 7️⃣  Optional debug print ----
+        # terminated_envs = self.reset_buf.nonzero(as_tuple=False).flatten()
+        # if len(terminated_envs) > 0:
+        #     msg = []
+        #     for env_id in terminated_envs.tolist():
+        #         reason = (
+        #             "contact_fail" if contact_fail[env_id]
+        #             else "orientation_fail" if orientation_fail[env_id]
+        #             else "timeout" if self.time_out_buf[env_id]
+        #             else "edge" if self.edge_reset_buf[env_id]
+        #             else "unknown"
+        #         )
+
+        #         # Use environment's own recorded time
+        #         episode_time_s = self.episode_length_buf[env_id].item() * self.dt
+
+        #         msg.append(
+        #             f"[Termination] Env {env_id:04d} -> {reason} "
+        #             f"(env_time={episode_time_s:.2f}s)"
+        #         )
+        #     print("\n".join(msg), flush=True)
 
     def reset_idx(self, env_ids):
         if len(env_ids) == 0:
@@ -496,6 +514,19 @@ class BipedWF(BaseTask):
         # --- Buffers pour la terminaison ---
         self.bad_contact_count = torch.zeros(self.num_envs, device=self.device)
         self.last_bad_contacts = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        
+        self.init_dof_pos = torch.zeros(
+            self.num_envs,
+            self.num_dof,
+            dtype=torch.float,
+            device=self.device,
+            requires_grad=False,
+        )
+
+        for i in range(self.num_dofs):
+            name = self.dof_names[i]
+            angle = self.cfg.custom_init_state.default_joint_angles[name]
+            self.init_dof_pos[:, i] = angle
 
     # ------------ reward functions----------------
 
@@ -612,8 +643,8 @@ class BipedWF(BaseTask):
     #     return delta_phi / self.dt
 
     def _reward_tracking_ang_vel(self):
-        # Penalize non zero yaw and roll rate of change of the base
-        return torch.square(self.base_ang_vel[:, 2]) + torch.square(self.base_ang_vel[:, 0])
+        # Penalize non‑zero yaw rate (rotation around the vertical axis) only
+        return torch.square(self.base_ang_vel[:, 2])
 
     # def _reward_tracking_ang_vel_pb(self):
     #     delta_phi = ~self.reset_buf * (self._reward_tracking_ang_vel() - self.rwd_angVelTrackPrev)

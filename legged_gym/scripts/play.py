@@ -132,6 +132,9 @@ def play(args):
     # camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
     img_idx = 0
     est = None
+    idle_steps = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
+    prev_actions = torch.zeros_like(env.actions, device=env.device)
+
     for i in range(10 * int(env.max_episode_length)):
         est = encoder(obs_history)
         actions = policy(torch.cat((est, obs, commands), dim=-1).detach())
@@ -141,6 +144,36 @@ def play(args):
         obs, rews, dones, infos, obs_history, commands, _ = env.step(
             actions.detach()
         )
+
+
+        
+
+        # --- Custom termination: policy idling behaviour ---
+        # Detect if actions haven’t changed much
+        idle_actions = torch.all(torch.isclose(actions, prev_actions, atol=1e-3), dim=1)
+        # Count consecutive idle steps
+        idle_steps = torch.where(idle_actions, idle_steps + 1, torch.zeros_like(idle_steps))
+        # Keep copy for next step
+        prev_actions = actions.clone()
+
+        # Detect joints near default positions
+        is_default = torch.all(
+            torch.isclose(env.dof_pos, env.raw_default_dof_pos, atol=0.02),
+            dim=1
+        )
+
+        # Combine both conditions: idle for > 50 steps (≈ 0.5 s) and at default
+        stop_condition = (idle_steps > 50) & is_default
+
+        if torch.any(stop_condition):
+            stopped_envs = torch.nonzero(stop_condition).flatten()
+            print(f"🧭 Policy‑idle reset for envs {stopped_envs.tolist()}", flush=True)
+            env.reset_idx(stopped_envs)
+            idle_steps[stopped_envs] = 0        # reset counters
+            prev_actions[stopped_envs] = 0
+
+
+
 
         if RECORD_FRAMES:
             if i % 2:
@@ -163,16 +196,18 @@ def play(args):
             camera_position = target_position + camera_offset
             # env.set_camera(camera_position, target_position)
 
-        # --- Log uniquement la toute première simulation ---
+        # --- Log uniquement la simulation du robot d’intérêt ---
         if not hasattr(env, "first_reset_done"):
             env.first_reset_done = False
             env.first_reset_detected = False
 
-        # Dès qu'un reset est détecté pour la première fois, on garde un flag
-        if not env.first_reset_done and torch.any(env.reset_buf):
+        # Vérifie uniquement le reset du robot_index ciblé
+        if not env.first_reset_done and env.reset_buf[robot_index]:
             env.first_reset_done = True
             env.first_reset_detected = True
-            print("✅ Premier reset détecté — les logs suivants ne seront plus enregistrés dans le graphe.")
+            episode_time_s = env.episode_length_buf[robot_index].item() * env.dt
+            print(f"✅ Premier reset détecté pour l'env {robot_index} "
+                f"(t = {episode_time_s:.2f}s) — arrêt de l’enregistrement.", flush=True)
 
         # On n’enregistre que si on est avant le premier reset
         if not env.first_reset_done:
@@ -270,8 +305,6 @@ def play(args):
         #             logger.log_rewards(infos["episode"], num_episodes)
         # elif i == stop_rew_log:
         #     logger.print_rewards()
-    print("Simulation complete. Environment is now idle — no torques being sent.")
-    input("Press ENTER to close viewer...")
 
 
 if __name__ == "__main__":
