@@ -43,6 +43,7 @@ class BipedCfgWF(BaseConfig):
         obs_history_length = 10  # number of observations stacked together
         dof_vel_use_pos_diff = True
         fail_to_terminal_time_s = 0.5
+        custom_initial_pos_and_dof = True  # use custom initial position and orientation
 
     class terrain:
         mesh_type = "plane"  # "heightfield" # none, plane, heightfield or trimesh

@@ -49,24 +49,23 @@ class BipedWF(BaseTask):
         Non-randomized version: initializes position and velocities
         to fixed values ​​(zero).
         """
-
-        base_init_state_list = (
-            self.cfg.custom_init_state.pos
-            + self.cfg.custom_init_state.rot
-            + self.cfg.custom_init_state.lin_vel
-            + self.cfg.custom_init_state.ang_vel
-        )
-        base_init_state = to_torch(
-            base_init_state_list, device=self.device, requires_grad=False
-        )
-
-        if self.custom_origins:
-            self.root_states[env_ids] = base_init_state
-            self.root_states[env_ids, :3] += self.env_origins[env_ids]
-            # Pas de random offset XY
+        if self.cfg.env.custom_initial_pos_and_dof:
+            if self.custom_origins:
+                self.root_states[env_ids] = self.custom_base_init_state
+                self.root_states[env_ids, :3] += self.env_origins[env_ids]
+                # Pas de random offset XY
+            else:
+                self.root_states[env_ids] = self.custom_base_init_state
+                self.root_states[env_ids, :3] += self.env_origins[env_ids]
+        
         else:
-            self.root_states[env_ids] = base_init_state
-            self.root_states[env_ids, :3] += self.env_origins[env_ids]
+            if self.custom_origins:
+                self.root_states[env_ids] = self.base_init_state
+                self.root_states[env_ids, :3] += self.env_origins[env_ids]
+                # Pas de random offset XY
+            else:
+                self.root_states[env_ids] = self.base_init_state
+                self.root_states[env_ids, :3] += self.env_origins[env_ids]
 
         # ✅  Met les vitesses linéaires et angulaires à zéro
         self.root_states[env_ids, 7:13] = torch.zeros(
@@ -90,8 +89,10 @@ class BipedWF(BaseTask):
         """
 
         # ✅ Set positions exactly to default (no random noise)
-        self.dof_pos[env_ids] = self.init_dof_pos[env_ids, :]
-        # self.dof_pos[env_ids] = self.default_dof_pos[env_ids, :]
+        if self.cfg.env.custom_initial_pos_and_dof:
+            self.dof_pos[env_ids] = self.init_dof_pos[env_ids, :]
+        else:
+            self.dof_pos[env_ids] = self.default_dof_pos[env_ids, :]
         
 
         # ✅ Set all joint velocities to zero
@@ -521,6 +522,16 @@ class BipedWF(BaseTask):
             dtype=torch.float,
             device=self.device,
             requires_grad=False,
+        )
+
+        custom_base_init_state_list = (
+            self.cfg.custom_init_state.pos
+            + self.cfg.custom_init_state.rot
+            + self.cfg.custom_init_state.lin_vel
+            + self.cfg.custom_init_state.ang_vel
+        )
+        self.custom_base_init_state = to_torch(
+            custom_base_init_state_list, device=self.device, requires_grad=False
         )
 
         for i in range(self.num_dofs):
