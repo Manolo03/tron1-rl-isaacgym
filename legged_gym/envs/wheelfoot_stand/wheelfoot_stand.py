@@ -647,6 +647,22 @@ class BipedWF(BaseTask):
 
         # Penalize horizontal motion (or reward zero horizontal velocity)
         return torch.sum(torch.square(world_lin_vel_xy), dim=1)
+    
+    # def _reward_tracking_lin_vel(self):
+    #     """
+    #     Reward staying still in the world frame (low horizontal base velocity).
+    #     Uses world-frame linear velocity directly from root_states.
+    #     """
+    #     # Base linear velocity in world frame: indices 7:10
+    #     world_lin_vel_xy = self.root_states[:, 7:9]  # x, y components only
+
+    #     # Squared horizontal speed
+    #     vel_error_sq = torch.sum(torch.square(world_lin_vel_xy), dim=1)
+
+    #     # Exponential (Gaussian‑like) reward
+    #     sigma = self.cfg.rewards.tracking_sigma
+    #     reward = torch.exp(-vel_error_sq / sigma)
+    #     return reward
 
     # def _reward_tracking_lin_vel_pb(self):
     #     delta_phi = ~self.reset_buf * (self._reward_tracking_lin_vel() - self.rwd_linVelTrackPrev)

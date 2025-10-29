@@ -272,10 +272,10 @@ class BipedCfgWF(BaseConfig):
     class rewards:
         class scales:
             # termination related rewards
-            keep_balance = 2.0
+            keep_balance = 5.0
 
             # tracking related rewards
-            tracking_lin_vel = -4.0
+            tracking_lin_vel = -3.0
             tracking_ang_vel = -1.0
             base_height = 5
             # tracking_lin_vel_pb = 1.0
@@ -294,7 +294,7 @@ class BipedCfgWF(BaseConfig):
             dof_pos_limits = -2.0
             collision = -50
             action_smooth = -0.03
-            orientation = -12.0
+            orientation = -5.0
             feet_distance = -100
             
 
@@ -307,7 +307,7 @@ class BipedCfgWF(BaseConfig):
         nominal_foot_position_tracking_sigma_wrt_v = 0.5
         leg_symmetry_tracking_sigma = 0.001
         foot_x_position_sigma = 0.001
-        height_tracking_sigma = 0.01
+        #height_tracking_sigma = 0.01
         soft_dof_pos_limit = (
             0.95  # percentage of urdf limits, values above this limit are penalized
         )
