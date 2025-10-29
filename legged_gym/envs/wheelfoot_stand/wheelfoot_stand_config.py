@@ -263,6 +263,8 @@ class BipedCfgWF(BaseConfig):
         randomize_motor_torque_range = [0.8, 1.2]
         randomize_default_dof_pos = False
         randomize_default_dof_pos_range = [-0.05, 0.05]
+        randomize_custom_init_dof = False
+        randomize_init_dof_pos_range = [-0.2, 0.2]
         randomize_action_delay = True
         randomize_imu_offset = True
         randomize_imu_offset_range = [-1.2, 1.2]
@@ -275,7 +277,7 @@ class BipedCfgWF(BaseConfig):
             keep_balance = 5.0
 
             # tracking related rewards
-            tracking_lin_vel = -3.0
+            tracking_lin_vel = 0.5
             tracking_ang_vel = -1.0
             base_height = 5
             # tracking_lin_vel_pb = 1.0

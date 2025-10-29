@@ -95,6 +95,7 @@ class BipedWF(BaseTask):
             self.dof_pos[env_ids] = self.default_dof_pos[env_ids, :]
         
 
+
         # ✅ Set all joint velocities to zero
         self.dof_vel[env_ids] = 0.0
 
@@ -106,74 +107,6 @@ class BipedWF(BaseTask):
             gymtorch.unwrap_tensor(env_ids_int32),
             len(env_ids_int32),
         )
-
-    # def check_termination(self):
-    #     """Check if environments need to be reset, with grace period for contact counting."""
-
-    #     # ---- 1️⃣  Initialisation (une seule fois) ----
-    #     if not hasattr(self, "bad_contact_count"):
-    #         self.bad_contact_count = torch.zeros(self.num_envs, device=self.device)
-    #         self.last_bad_contacts = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-
-    #     # ---- 2️⃣  Masque temporel (grace period de 1 seconde de simulation) ----
-    #     active_mask = self.envs_steps_buf * self.dt > 0  # on n'active la terminaison qu'après 1 s
-
-    #     # ---- 3️⃣  Détection des contacts ----
-    #     bad_contacts = torch.any(
-    #         torch.norm(
-    #             self.contact_forces[:, self.termination_contact_indices, :], dim=-1
-    #         ) > 10.0,
-    #         dim=1,
-    #     )
-
-    #     # Nouveau contact uniquement (uniquement après la période de grâce)
-    #     new_contacts = (bad_contacts & ~self.last_bad_contacts) & active_mask
-    #     self.bad_contact_count += new_contacts.float()
-    #     self.last_bad_contacts = bad_contacts.clone()
-
-    #     # ---- 4️⃣  Détection d'orientation problématique ----
-    #     orientation_fail = (self.projected_gravity[:, 2] > -0.1) & active_mask  # activé après 1s également
-
-    #     # ---- 5️⃣  Condition combinée de terminaison ----
-    #     fail_buf = (self.bad_contact_count > 1) | orientation_fail
-    #     self.fail_buf += fail_buf
-
-    #     # ---- 6️⃣  Timeout et bords de terrain ----
-    #     self.time_out_buf = self.episode_length_buf > self.max_episode_length
-    #     if self.cfg.terrain.mesh_type in ["heightfield", "trimesh"]:
-    #         self.edge_reset_buf = self.base_position[:, 0] > self.terrain_x_max - 1
-    #         self.edge_reset_buf |= self.base_position[:, 0] < self.terrain_x_min + 1
-    #         self.edge_reset_buf |= self.base_position[:, 1] > self.terrain_y_max - 1
-    #         self.edge_reset_buf |= self.base_position[:, 1] < self.terrain_y_min + 1
-
-    #     # ---- 7️⃣  Condition finale de reset ----
-    #     self.reset_buf = (
-    #         (self.fail_buf > self.cfg.env.fail_to_terminal_time_s / self.dt)
-    #         | self.time_out_buf
-    #         | self.edge_reset_buf
-    #     )
-
-        # # ---- 8️⃣  Debug print ----
-        # terminated_envs = self.reset_buf.nonzero(as_tuple=False).flatten()
-        # if len(terminated_envs) > 0:
-        #     contact_fail = (self.bad_contact_count > 1)[terminated_envs]
-        #     orientation_fail_env = orientation_fail[terminated_envs]
-        #     msg = []
-        #     for i, env_id in enumerate(terminated_envs.tolist()):
-        #         if contact_fail[i]:
-        #             reason = "contact_count>1"
-        #         elif orientation_fail_env[i]:
-        #             reason = "orientation_fail"
-        #         elif self.time_out_buf[env_id]:
-        #             reason = "timeout"
-        #         elif self.edge_reset_buf[env_id]:
-        #             reason = "edge"
-        #         else:
-        #             reason = "unknown"
-        #         step_count = int(self.envs_steps_buf[env_id].item())
-        #         episode_time_s = step_count * self.dt
-        #         msg.append(f"[Termination] Env {env_id:04d} -> {reason} (step={step_count}, time={episode_time_s:.2f}s)")
-        #     print("\n".join(msg))
 
     def check_termination(self):
         """Check if environments need to be reset.
@@ -272,8 +205,6 @@ class BipedWF(BaseTask):
         self.action_fifo[env_ids] = 0
         self.dof_pos_int[env_ids] = 0
 
-        self.bad_contact_count[env_ids] = 0
-        self.last_bad_contacts[env_ids] = False
         # fill extras
         self.extras["episode"] = {}
         for key in self.episode_sums.keys():
@@ -511,10 +442,6 @@ class BipedWF(BaseTask):
         super()._init_buffers()
         self.wheel_lin_vel = torch.zeros_like(self.foot_velocities)
         self.wheel_ang_vel = torch.zeros_like(self.base_ang_vel)
-
-        # --- Buffers pour la terminaison ---
-        self.bad_contact_count = torch.zeros(self.num_envs, device=self.device)
-        self.last_bad_contacts = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         
         self.init_dof_pos = torch.zeros(
             self.num_envs,
@@ -538,6 +465,14 @@ class BipedWF(BaseTask):
             name = self.dof_names[i]
             angle = self.cfg.custom_init_state.default_joint_angles[name]
             self.init_dof_pos[:, i] = angle
+        
+        if self.cfg.domain_rand.randomize_custom_init_dof:
+            self.init_dof_pos += torch_rand_float(
+                self.cfg.domain_rand.randomize_init_dof_pos_range[0],
+                self.cfg.domain_rand.randomize_init_dof_pos_range[1],
+                (self.num_envs, self.num_dof),
+                device=self.device,
+            )
 
     # ------------ reward functions----------------
 
@@ -638,31 +573,31 @@ class BipedWF(BaseTask):
         out_of_limits += (self.dof_pos - self.dof_pos_limits[:, 1]).clip(min=0.0)
         return torch.sum(out_of_limits, dim=1)
 
-    def _reward_tracking_lin_vel(self):
-        # Compute base linear velocity in world coordinates
-        world_lin_vel = quat_apply(self.base_quat, self.base_lin_vel)
-
-        # Keep only the horizontal (ground‑plane) components
-        world_lin_vel_xy = world_lin_vel[:, :2]
-
-        # Penalize horizontal motion (or reward zero horizontal velocity)
-        return torch.sum(torch.square(world_lin_vel_xy), dim=1)
-    
     # def _reward_tracking_lin_vel(self):
-    #     """
-    #     Reward staying still in the world frame (low horizontal base velocity).
-    #     Uses world-frame linear velocity directly from root_states.
-    #     """
-    #     # Base linear velocity in world frame: indices 7:10
-    #     world_lin_vel_xy = self.root_states[:, 7:9]  # x, y components only
+    #     # Compute base linear velocity in world coordinates
+    #     world_lin_vel = quat_apply(self.base_quat, self.base_lin_vel)
 
-    #     # Squared horizontal speed
-    #     vel_error_sq = torch.sum(torch.square(world_lin_vel_xy), dim=1)
+    #     # Keep only the horizontal (ground‑plane) components
+    #     world_lin_vel_xy = world_lin_vel[:, :2]
 
-    #     # Exponential (Gaussian‑like) reward
-    #     sigma = self.cfg.rewards.tracking_sigma
-    #     reward = torch.exp(-vel_error_sq / sigma)
-    #     return reward
+    #     # Penalize horizontal motion (or reward zero horizontal velocity)
+    #     return torch.sum(torch.square(world_lin_vel_xy), dim=1)
+    
+    def _reward_tracking_lin_vel(self):
+        """
+        Reward staying still in the world frame (low horizontal base velocity).
+        Uses world-frame linear velocity directly from root_states.
+        """
+        # Base linear velocity in world frame: indices 7:10
+        world_lin_vel_xy = self.root_states[:, 7:9]  # x, y components only
+
+        # Squared horizontal speed
+        vel_error_sq = torch.sum(torch.square(world_lin_vel_xy), dim=1)
+
+        # Exponential (Gaussian‑like) reward
+        sigma = self.cfg.rewards.tracking_sigma
+        reward = torch.exp(-vel_error_sq / sigma)
+        return reward
 
     # def _reward_tracking_lin_vel_pb(self):
     #     delta_phi = ~self.reset_buf * (self._reward_tracking_lin_vel() - self.rwd_linVelTrackPrev)
