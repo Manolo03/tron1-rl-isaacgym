@@ -298,7 +298,7 @@ class BipedCfgWF(BaseConfig):
             action_smooth = -0.03
             orientation = -5.0
             feet_distance = -100
-            #stay_near_start_xy = 0.1
+            stay_near_start_xy = 0.1
             #keep_initi_yaw = 0.1
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
