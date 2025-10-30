@@ -621,9 +621,11 @@ class BipedWF(BaseTask):
         return torch.exp(-height_error / self.cfg.rewards.height_tracking_sigma)
     
     def _reward_stay_near_start_xy(self):
-        # Penalize deviation in x and y from starting position
-        # Assumes self.base_position stores current position and self.cfg.init_state.pos is the start
+        #Penalize deviation in x and y from starting position
+        #Assumes self.base_position stores current position and self.cfg.init_state.pos is the start
         start_xy = torch.tensor(self.cfg.init_state.pos[:2], device=self.device)
         current_xy = self.base_position[:, :2]
         xy_error = torch.norm(current_xy - start_xy, dim=1)
+
+        #Careful with coordinates frame
         return xy_error

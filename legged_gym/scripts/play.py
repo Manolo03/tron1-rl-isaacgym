@@ -57,19 +57,19 @@ def play(args):
     env_cfg.terrain.num_cols = 20
     env_cfg.terrain.terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
     env_cfg.terrain.max_init_terrain_level = 4
-    env_cfg.terrain.curriculum = True
-    env_cfg.noise.add_noise = True
-    env_cfg.noise.noise_level = 0.5
-    env_cfg.domain_rand.randomize_friction = False
-    env_cfg.domain_rand.randomize_restitution = False
-    env_cfg.domain_rand.randomize_base_com = False
-    env_cfg.domain_rand.push_robots = False
-    env_cfg.domain_rand.push_interval_s = 3
-    env_cfg.domain_rand.randomize_Kp = False
-    env_cfg.domain_rand.randomize_Kd = False
-    env_cfg.domain_rand.randomize_motor_torque = False
-    env_cfg.domain_rand.randomize_default_dof_pos = False
-    env_cfg.domain_rand.randomize_action_delay = False
+    # env_cfg.terrain.curriculum = True
+    # env_cfg.noise.add_noise = True
+    # env_cfg.noise.noise_level = 0.5
+    # env_cfg.domain_rand.randomize_friction = False
+    # env_cfg.domain_rand.randomize_restitution = False
+    # env_cfg.domain_rand.randomize_base_com = False
+    # env_cfg.domain_rand.push_robots = False
+    # env_cfg.domain_rand.push_interval_s = 3
+    # env_cfg.domain_rand.randomize_Kp = False
+    # env_cfg.domain_rand.randomize_Kd = False
+    # env_cfg.domain_rand.randomize_motor_torque = False
+    # env_cfg.domain_rand.randomize_default_dof_pos = False
+    # env_cfg.domain_rand.randomize_action_delay = False
 
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
