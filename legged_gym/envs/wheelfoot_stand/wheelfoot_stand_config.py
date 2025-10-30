@@ -287,7 +287,7 @@ class BipedCfgWF(BaseConfig):
             #nominal_foot_position = 4.0
             leg_symmetry = 0.5
             same_foot_x_position = -50 # 0.5
-            #same_foot_z_position = -100
+            same_foot_z_position = -100
             #lin_vel_z = -0.3
             #ang_vel_xy = -0.3
             torques = -0.00016
@@ -298,7 +298,8 @@ class BipedCfgWF(BaseConfig):
             action_smooth = -0.03
             orientation = -5.0
             feet_distance = -100
-            #stay_near_start_xy = -0.1
+            #stay_near_start_xy = 0.1
+            #keep_initi_yaw = 0.1
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
         clip_reward = 100
@@ -326,6 +327,8 @@ class BipedCfgWF(BaseConfig):
         gait_height_sigma = 0.005
         feet_height_tracking_sigma = 0.005
         height_tracking_sigma = 0.1
+        xy_tracking_sigma = 0.1
+        #yaw_tracking_sigma = 0.1
 
     class normalization:
         class obs_scales:

@@ -621,11 +621,45 @@ class BipedWF(BaseTask):
         return torch.exp(-height_error / self.cfg.rewards.height_tracking_sigma)
     
     def _reward_stay_near_start_xy(self):
-        #Penalize deviation in x and y from starting position
-        #Assumes self.base_position stores current position and self.cfg.init_state.pos is the start
-        start_xy = torch.tensor(self.cfg.init_state.pos[:2], device=self.device)
-        current_xy = self.base_position[:, :2]
+        """
+        Penalize horizontal displacement from the initial world position.
+        Uses world coordinates (self.base_position from root_states[:, :3]).
+        """
+        start_xy = torch.tensor(
+            self.cfg.init_state.pos[:2], device=self.device
+        ).unsqueeze(0)  # (1,2) broadcast to all envs
+        current_xy = self.base_position[:, :2]  # world frame
+
+        # L2 distance in the XY plane
         xy_error = torch.norm(current_xy - start_xy, dim=1)
 
-        #Careful with coordinates frame
-        return xy_error
+        # Exponential "stay near start" reward
+        reward = torch.exp(-xy_error**2 / self.cfg.rewards.xy_tracking_sigma**2)
+        return reward
+    
+    from legged_gym.utils.math import wrap_to_pi, quat_apply_yaw
+
+    def _reward_keep_initial_yaw(self):
+        """
+        Reward staying close to the initial yaw orientation in world coordinates,
+        using Legged‑Gym math helpers.
+        """
+        # Extract current and initial forward vectors in world coordinates
+        forward_vec = torch.tensor([1.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
+        current_forward = quat_apply_yaw(self.base_quat, forward_vec)
+        
+        # Initial orientation from config
+        init_quat = torch.tensor(self.cfg.init_state.rot, device=self.device).unsqueeze(0)
+        init_forward = quat_apply_yaw(init_quat.repeat(self.num_envs, 1), forward_vec)
+
+        # Compute yaw difference between current and initial heading
+        yaw_error = torch.atan2(
+            current_forward[:, 1], current_forward[:, 0]
+        ) - torch.atan2(
+            init_forward[:, 1], init_forward[:, 0]
+        )
+        yaw_error = wrap_to_pi(yaw_error)
+
+        reward = torch.exp(-yaw_error ** 2 / self.cfg.rewards.yaw_tracking_sigma)
+
+        return reward
