@@ -50,7 +50,7 @@ import matplotlib.pyplot as plt
 def play(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
-    env_cfg.env.episode_length_s = 30
+    env_cfg.env.episode_length_s = 10
     env_cfg.env.num_envs = min(env_cfg.env.num_envs, 100)
 
     env_cfg.terrain.num_rows = 10
@@ -121,7 +121,7 @@ def play(args):
         )
 
     logger = Logger(env.dt)
-    robot_index = 5  # which robot is used for logging
+    robot_index = 0  # which robot is used for logging
     joint_index = 1  # which joint is used for logging
     stop_state_log = 500  # number of steps before plotting states
     stop_rew_log = (
