@@ -619,22 +619,26 @@ class BipedWF(BaseTask):
         height_error = (base_height - self.cfg.rewards.base_height_target)**2
         #return torch.norm(base_height - self.cfg.rewards.base_height_target)
         return torch.exp(-height_error / self.cfg.rewards.height_tracking_sigma)
+
     
     def _reward_stay_near_start_xy(self):
         """
-        Penalize horizontal displacement from the initial world position.
-        Uses world coordinates (self.base_position from root_states[:, :3]).
+        Penalize horizontal displacement from the initial world position
+        (with each environment's own origin removed).
         """
-        start_xy = torch.tensor(
-            self.cfg.init_state.pos[:2], device=self.device
-        ).unsqueeze(0)  # (1,2) broadcast to all envs
-        current_xy = self.base_position[:, :2]  # world frame
+        # Base XY position relative to its environment’s origin
+        rel_xy = self.base_position[:, :2] - self.env_origins[:, :2]
 
-        # L2 distance in the XY plane
-        xy_error = torch.norm(current_xy - start_xy, dim=1)
+        # Each env has the same nominal local starting offset from its origin
+        start_xy_local = torch.tensor(
+            self.cfg.custom_init_state.pos[:2], device=self.device
+        ).unsqueeze(0)  # (1,2), broadcast to all
+
+        # Compute error in local frame (same as "within-env" world frame)
+        xy_error = torch.norm(rel_xy - start_xy_local, dim=1)
 
         # Exponential "stay near start" reward
-        reward = torch.exp(-xy_error**2 / self.cfg.rewards.xy_tracking_sigma**2)
+        reward = torch.exp(-xy_error**2 / self.cfg.rewards.xy_tracking_sigma)
         return reward
     
     from legged_gym.utils.math import wrap_to_pi, quat_apply_yaw

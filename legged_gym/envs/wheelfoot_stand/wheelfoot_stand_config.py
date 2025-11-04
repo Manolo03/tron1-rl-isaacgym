@@ -298,8 +298,8 @@ class BipedCfgWF(BaseConfig):
             action_smooth = -0.03
             orientation = -5.0
             feet_distance = -100
-            stay_near_start_xy = 0.1
-            #keep_initi_yaw = 0.1
+            stay_near_start_xy = 1.0
+            keep_initi_yaw = 1.0
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
         clip_reward = 100
@@ -327,8 +327,8 @@ class BipedCfgWF(BaseConfig):
         gait_height_sigma = 0.005
         feet_height_tracking_sigma = 0.005
         height_tracking_sigma = 0.1
-        xy_tracking_sigma = 0.1
-        #yaw_tracking_sigma = 0.1
+        xy_tracking_sigma = 1.0
+        yaw_tracking_sigma = 1.0
 
     class normalization:
         class obs_scales:
