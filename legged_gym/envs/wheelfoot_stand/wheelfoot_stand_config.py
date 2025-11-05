@@ -294,7 +294,7 @@ class BipedCfgWF(BaseConfig):
             dof_acc = -1.5e-7
             action_rate = -0.03
             dof_pos_limits = -2.0
-            collision = -50
+            collision = -500
             action_smooth = -0.03
             orientation = -5.0
             feet_distance = -100
