@@ -606,7 +606,10 @@ class BipedWF(BaseTask):
 
     def _reward_tracking_ang_vel(self):
         # Penalize non‑zero yaw rate (rotation around the vertical axis) only
-        return torch.square(self.base_ang_vel[:, 2])
+        #return torch.square()
+        sigma = self.cfg.rewards.tracking_sigma
+        reward = torch.exp(-self.base_ang_vel[:, 2]**2 / sigma)
+        return reward
 
     # def _reward_tracking_ang_vel_pb(self):
     #     delta_phi = ~self.reset_buf * (self._reward_tracking_ang_vel() - self.rwd_angVelTrackPrev)
