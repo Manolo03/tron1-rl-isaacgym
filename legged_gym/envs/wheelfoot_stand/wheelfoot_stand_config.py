@@ -277,7 +277,7 @@ class BipedCfgWF(BaseConfig):
             keep_balance = 5.0
 
             # tracking related rewards
-            tracking_lin_vel = 1.0 #
+            tracking_lin_vel = 2.0 #
             tracking_ang_vel = 1.0
             base_height = 5
             # tracking_lin_vel_pb = 1.0
@@ -294,7 +294,7 @@ class BipedCfgWF(BaseConfig):
             dof_acc = -1.5e-7
             action_rate = -0.03
             dof_pos_limits = -2.0
-            collision = -150
+            collision = -50
             action_smooth = -0.03
             orientation = -5.0
             feet_distance = -100
