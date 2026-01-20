@@ -110,7 +110,7 @@ class BipedCfgWF(BaseConfig):
         non_smooth_max_lin_vel_y = 1.0
         max_ang_vel_yaw = 3.0
         curriculum_threshold = 0.75
-        num_commands = 3  # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
+        num_commands = 4  # lin_vel_x, lin_vel_y, ang_vel_yaw, height_target
         resampling_time = 5.0  # time before command are changed[s]
         heading_command = False  # if true: compute ang vel command from heading error, only work on adaptive group
         min_norm = 0.1
@@ -122,6 +122,7 @@ class BipedCfgWF(BaseConfig):
             # lin_vel_y = [-1.7, 1.7]  # min max [m/s]
             ang_vel_yaw = [0.0, 0.0]  # min max [rad/s]
             heading = [-3.14159, 3.14159]
+            height_target = [0.4, 0.8]  # min max [m] - randomized once per env at initialization
 
     class gait:
         num_gait_params = 4
@@ -326,7 +327,7 @@ class BipedCfgWF(BaseConfig):
         gait_vel_sigma = 0.25
         gait_height_sigma = 0.005
         feet_height_tracking_sigma = 0.005
-        height_tracking_sigma = 0.1
+        height_tracking_sigma = 0.01
         xy_tracking_sigma = 1.0
         yaw_tracking_sigma = 1.0
 

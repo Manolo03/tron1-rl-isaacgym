@@ -78,8 +78,26 @@ def play(args):
     env.reset()
     # get robot_type
     robot_type = os.getenv("ROBOT_TYPE")
-    commands_val = to_torch([0.5, 0.0, 0, 0], device=env.device) if robot_type.startswith("PF")\
-        else to_torch([0.0, 0.0, 0.0], device=env.device) if robot_type == "WF_TRON1A" else to_torch([1.5, 0.0, 0.0, 0.0, 0.0])
+    # Default commands per robot type / task
+    if robot_type.startswith("PF"):
+        # PF: 4 commands (example from README)
+        commands_val = to_torch([0.5, 0.0, 0.0, 0.0], device=env.device)
+    elif robot_type == "WF_TRON1A":
+        if args.task == "wheelfoot_stand":
+            # WF stand: 4 commands -> [lin_x, lin_y, yaw, height_target]
+            # If height_target CLI arg is provided, use it; otherwise use middle of config range
+            if hasattr(args, "height_target") and args.height_target is not None:
+                height_target = args.height_target
+            else:
+                h_min, h_max = env_cfg.commands.ranges.height_target
+                height_target = 0.5 * (h_min + h_max)
+            commands_val = to_torch([0.0, 0.0, 0.0, height_target], device=env.device)
+        else:
+            # Other WF tasks: 3 commands [lin_x, lin_y, yaw]
+            commands_val = to_torch([0.0, 0.0, 0.0], device=env.device)
+    else:
+        # SF or other: 5 commands as originally
+        commands_val = to_torch([1.5, 0.0, 0.0, 0.0, 0.0], device=env.device)
     action_scale = env.cfg.control.action_scale_pos if robot_type == "WF_TRON1A"\
         else env.cfg.control.action_scale
     obs, obs_history, commands, _ = env.get_observations()
@@ -121,7 +139,7 @@ def play(args):
         )
 
     logger = Logger(env.dt)
-    robot_index = 0  # which robot is used for logging
+    robot_index = 0  # which robot is used for logging / manual command control
     joint_index = 1  # which joint is used for logging
     stop_state_log = 500  # number of steps before plotting states
     stop_rew_log = (
@@ -139,7 +157,13 @@ def play(args):
         est = encoder(obs_history)
         actions = policy(torch.cat((est, obs, commands), dim=-1).detach())
 
-        env.commands[:, :] = commands_val
+        # Set commands
+        if robot_type == "WF_TRON1A" and args.task == "wheelfoot_stand":
+            # Only override the monitored environment's commands so we can control its height target
+            env.commands[robot_index, : commands_val.shape[0]] = commands_val
+        else:
+            # For other tasks, use the same commands for all envs
+            env.commands[:, : commands_val.shape[0]] = commands_val
 
         obs, rews, dones, infos, obs_history, commands, _ = env.step(
             actions.detach()

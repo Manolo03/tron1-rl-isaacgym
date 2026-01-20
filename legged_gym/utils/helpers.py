@@ -227,7 +227,17 @@ def get_args():
             "type": int,
             "help": "Maximum number of training iterations. Overrides config file if provided.",
         },
-        {"name": "--exptid", "type": str, "default": "", "help": "exptid"},
+        {
+            "name": "--exptid",
+            "type": str,
+            "default": "",
+            "help": "exptid",
+        },
+        {
+            "name": "--height_target",
+            "type": float,
+            "help": "Target stand height (m) for wheelfoot_stand in play.py. If not set, uses the middle of the config range.",
+        },
     ]
     # parse arguments
     args = gymutil.parse_arguments(

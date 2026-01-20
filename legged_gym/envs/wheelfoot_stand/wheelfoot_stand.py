@@ -1,4 +1,5 @@
 import math
+import sys
 from legged_gym import LEGGED_GYM_ROOT_DIR, envs
 from time import time
 from warnings import WarningMessage
@@ -261,7 +262,7 @@ class BipedWF(BaseTask):
             self.reset_buf,
             self.extras,
             self.obs_history,
-            self.commands[:, :3] * self.commands_scale,
+            self.commands[:, :4] * self.commands_scale,
             self.critic_obs_buf # make sure critic_obs update in every for loop
         )
         
@@ -297,6 +298,106 @@ class BipedWF(BaseTask):
     def post_physics_step(self):
         super().post_physics_step()
         self.wheel_lin_vel = self.foot_velocities[:, 0, :] + self.foot_velocities[:, 1, :]
+    
+    def get_observations(self):
+        """Override to return 4 commands (including height_target)"""
+        return (
+            self.obs_buf,
+            self.obs_history,
+            self.commands[:, :4] * self.commands_scale,
+            self.critic_obs_buf
+        )
+    
+    def _draw_debug_vis(self):
+        """Draw green dots at target height for each environment"""
+        if self.viewer is None:
+            return
+        
+        # Clear previous debug lines
+        self.gym.clear_lines(self.viewer)
+        
+        # Draw green dot at target height for each environment
+        # Use a small circle of lines to represent the dot
+        dot_size = 0.03  # 3cm radius
+        green_color = np.array([0.0, 1.0, 0.0], dtype=np.float32)  # Green color
+        
+        # Limit drawing to first 100 environments for performance (or all if fewer)
+        max_envs_to_draw = min(100, self.num_envs)
+        
+        # Collect all vertices and colors
+        vertices = []
+        colors = []
+        num_segments = 12  # Number of line segments to form a circle
+        
+        for env_id in range(max_envs_to_draw):
+            target_height = self.commands[env_id, 3].item()  # height_target command
+            
+            # Get base position (x, y) - we'll draw the dot above the base
+            base_pos = self.base_position[env_id].cpu().numpy()
+            x, y = base_pos[0], base_pos[1]
+            
+            # Create a circle of lines at target height
+            for i in range(num_segments):
+                angle1 = 2 * np.pi * i / num_segments
+                angle2 = 2 * np.pi * (i + 1) / num_segments
+                
+                # Create vertices for line segment
+                p1 = np.array([
+                    x + dot_size * np.cos(angle1),
+                    y + dot_size * np.sin(angle1),
+                    target_height
+                ], dtype=np.float32)
+                p2 = np.array([
+                    x + dot_size * np.cos(angle2),
+                    y + dot_size * np.sin(angle2),
+                    target_height
+                ], dtype=np.float32)
+                
+                vertices.extend([p1, p2])
+                colors.append(green_color)
+        
+        if len(vertices) > 0:
+            # Convert to numpy arrays
+            vertices_array = np.array(vertices, dtype=np.float32)
+            colors_array = np.array(colors, dtype=np.float32)
+            
+            # Draw all lines at once (more efficient)
+            self.gym.add_lines(
+                self.viewer,
+                None,  # Draw in all environments
+                len(colors),
+                vertices_array,
+                colors_array
+            )
+    
+    def render(self, sync_frame_time=True):
+        """Override render to add debug visualization"""
+        if self.viewer:
+            # check for window closed
+            if self.gym.query_viewer_has_closed(self.viewer):
+                sys.exit()
+
+            # check for keyboard events
+            for evt in self.gym.query_viewer_action_events(self.viewer):
+                if evt.action == "QUIT" and evt.value > 0:
+                    sys.exit()
+                elif evt.action == "toggle_viewer_sync" and evt.value > 0:
+                    self.enable_viewer_sync = not self.enable_viewer_sync
+
+            # fetch results
+            if self.device != "cpu":
+                self.gym.fetch_results(self.sim, True)
+
+            # step graphics
+            if self.enable_viewer_sync:
+                self.gym.step_graphics(self.sim)
+                # Draw debug visualization before drawing viewer
+                self._draw_debug_vis()
+                self.gym.draw_viewer(self.viewer, self.sim, True)
+                if sync_frame_time:
+                    self.gym.sync_frame_time(self.sim)
+            else:
+                self.gym.poll_viewer_events(self.viewer)
 
     def compute_group_observations(self):
         # note that observation noise need to modified accordingly !!!
@@ -380,13 +481,7 @@ class BipedWF(BaseTask):
         ][
             env_ids, 0
         ]
-        if self.cfg.commands.heading_command:
-            self.commands[env_ids, 3] = torch_rand_float(
-                self.command_ranges["heading"][0],
-                self.command_ranges["heading"][1],
-                (len(env_ids), 1),
-                device=self.device,
-            ).squeeze(1)
+        # Note: height_target (index 3) is NOT resampled - it remains constant per environment
 
         #set 50% of resample to go straight
         resample_nums = len(env_ids)
@@ -473,6 +568,34 @@ class BipedWF(BaseTask):
                 (self.num_envs, self.num_dof),
                 device=self.device,
             )
+        
+        # Initialize height_target command once per environment (never resampled)
+        # Initialize command_ranges for height_target if not already done
+        if "height_target" not in self.command_ranges:
+            self.command_ranges["height_target"] = torch.zeros(
+                self.num_envs,
+                2,
+                dtype=torch.float,
+                device=self.device,
+                requires_grad=False,
+            )
+            self.command_ranges["height_target"][:] = torch.tensor(
+                self.cfg.commands.ranges.height_target
+            )
+        
+        # Randomize height_target once per environment at initialization
+        self.commands[:, 3] = torch_rand_float(
+            self.cfg.commands.ranges.height_target[0],
+            self.cfg.commands.ranges.height_target[1],
+            (self.num_envs, 1),
+            device=self.device,
+        ).squeeze(1)
+        
+        # Update commands_scale to include height_target (scale of 1.0 for height in meters)
+        self.commands_scale = torch.cat([
+            self.commands_scale,
+            torch.ones(1, device=self.device)  # height_target uses scale of 1.0
+        ])
 
     # ------------ reward functions----------------
 
@@ -617,10 +740,10 @@ class BipedWF(BaseTask):
     #     return delta_phi / self.dt
     
     def _reward_base_height(self):
-        # Penalize base height away from target
+        # Reward tracking per-environment height target command
         base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-        height_error = (base_height - self.cfg.rewards.base_height_target)**2
-        #return torch.norm(base_height - self.cfg.rewards.base_height_target)
+        height_target = self.commands[:, 3]  # height_target command (per environment)
+        height_error = (base_height - height_target)**2
         return torch.exp(-height_error / self.cfg.rewards.height_tracking_sigma)
 
     
